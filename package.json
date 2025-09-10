@@ -18,7 +18,11 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "prisma": "^6.16.0",
+    "winston": "^3.17.0",
+    "zod": "^4.1.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
