@@ -2,7 +2,11 @@
 
 import z from "zod";
 
-export const signInSchema = z.object({
-  phoneNumber: z.number().max(10).min(10),
-  password: z.string(),
+export const tokenSchema = z.object({
+  idToken: z.string().min(1, "Authorization token is required."),
 });
+
+export const userDetailsSchema = z.object({
+  userName:z.string().min(1,"Enter Your Name"),
+  address:z.string().min(1,"Enter Your Address")
+})
