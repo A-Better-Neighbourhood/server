@@ -12,17 +12,20 @@
   },
   "license": "ISC",
   "author": "",
-  "type": "module",
+  "type": "commonjs",
   "main": "index.js",
   "scripts": {
+    "dev": "nodemon --exec ts-node src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "express": "^5.1.0",
+    "firebase-admin": "^13.5.0",
     "jsonwebtoken": "^9.0.2",
+    "pg": "^8.16.3",
     "prisma": "^6.16.0",
     "winston": "^3.17.0",
-    "zod": "^4.1.5"
+    "zod": "^4.1.7"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
