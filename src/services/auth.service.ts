@@ -69,13 +69,9 @@ export class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Generate a unique uid (using phone number for simplicity)
-    const uid = `user_${phoneNumber}_${Date.now()}`;
-
     // Create user
     const user = await prisma.user.create({
       data: {
-        uid,
         contactNo: phoneNumber,
         password: hashedPassword,
         fullName: name,
@@ -109,7 +105,6 @@ export class AuthService {
         contactNo: true,
         fullName: true,
         address: true,
-        uid: true,
         createdAt: true,
       },
     });
