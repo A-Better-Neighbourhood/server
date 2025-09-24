@@ -1,8 +1,8 @@
 /** @format */
 
 import { RequestHandler } from "express";
-import { verifyToken, extractTokenFromHeader } from "../utils/jwt.js";
-import { authService } from "../services/auth.service.js";
+import { verifyToken, extractTokenFromHeader } from "../utils/jwt";
+import { authService } from "../services/auth.service";
 
 export const authMiddleware: RequestHandler = async (req, res, next) => {
   try {

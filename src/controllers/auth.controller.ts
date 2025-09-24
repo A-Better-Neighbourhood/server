@@ -1,9 +1,10 @@
 /** @format */
 
 import { RequestHandler } from "express";
-import { authService } from "../services/auth.service.js";
-import { signInSchema, signUpSchema } from "../schemas/auth.schema.js";
+import { authService } from "../services/auth.service";
+import { signInSchema, signUpSchema } from "../schemas/auth.schema";
 import { ZodError } from "zod";
+import { ResponseHandler } from "../utils/response";
 
 export const signIn: RequestHandler = async (req, res) => {
   try {
@@ -11,24 +12,27 @@ export const signIn: RequestHandler = async (req, res) => {
 
     const authResponse = await authService.signIn(phoneNumber, password);
 
-    return res.status(200).json({
-      success: true,
-      message: "Sign in successful",
-      data: authResponse,
+    res.cookie("token", authResponse.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
+
+    return ResponseHandler.success(
+      res,
+      authResponse.user,
+      "Sign in successful"
+    );
   } catch (error) {
     if (error instanceof ZodError) {
-      return res.status(400).json({
-        success: false,
-        message: "Validation error",
-        errors: error.issues,
-      });
+      return ResponseHandler.badRequest(res, "Validation error", error.issues);
     }
 
-    return res.status(401).json({
-      success: false,
-      message: error instanceof Error ? error.message : "Authentication failed",
-    });
+    return ResponseHandler.unauthorized(
+      res,
+      error instanceof Error ? error.message : "Authentication failed"
+    );
   }
 };
 
@@ -45,25 +49,21 @@ export const signUp: RequestHandler = async (req, res) => {
       address
     );
 
-    return res.status(201).json({
-      success: true,
-      message: "Account created successfully",
-      data: authResponse,
-    });
+    return ResponseHandler.success(
+      res,
+      authResponse,
+      "Account created successfully",
+      201
+    );
   } catch (error) {
     if (error instanceof ZodError) {
-      return res.status(400).json({
-        success: false,
-        message: "Validation error",
-        errors: error.issues,
-      });
+      return ResponseHandler.badRequest(res, "Validation error", error.issues);
     }
 
-    return res.status(400).json({
-      success: false,
-      message:
-        error instanceof Error ? error.message : "Failed to create account",
-    });
+    return ResponseHandler.badRequest(
+      res,
+      error instanceof Error ? error.message : "Failed to create account"
+    );
   }
 };
 
@@ -72,29 +72,17 @@ export const getProfile: RequestHandler = async (req, res) => {
     const userId = req.user?.id;
 
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
+      return ResponseHandler.unauthorized(res);
     }
 
     const user = await authService.getUserById(userId);
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
+      return ResponseHandler.notFound(res, "User not found");
     }
 
-    return res.status(200).json({
-      success: true,
-      data: user,
-    });
+    return ResponseHandler.success(res, user);
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
+    return ResponseHandler.serverError(res);
   }
 };

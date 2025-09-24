@@ -1,8 +1,8 @@
 /** @format */
 
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "../generated/prisma/index.js";
-import { generateToken, JwtPayload } from "../utils/jwt.js";
+import { PrismaClient } from "../generated/prisma/index";
+import { generateToken, JwtPayload } from "../utils/jwt";
 
 const prisma = new PrismaClient();
 

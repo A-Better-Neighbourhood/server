@@ -1,8 +1,8 @@
 /** @format */
 
 import { Router } from "express";
-import { signIn, signUp, getProfile } from "../controllers/auth.controller.js";
-import { authMiddleware } from "../middlewares/auth.middleware.js";
+import { signIn, signUp, getProfile } from "../controllers/auth.controller";
+import { authMiddleware } from "../middlewares/auth.middleware";
 
 const authRouter = Router();
 
