@@ -15,12 +15,13 @@ datasource db {
 }
 
 enum IssueStatus {
-  SOLVED
-  UNSOLVED
+  RESOLVED
+  PENDING
+  IN_PROGRESS
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
   uid       String   @unique  
   fullName  String
   address   String
@@ -33,17 +34,17 @@ model User {
 }
 
 model Issue {
-  id          Int          @id @default(autoincrement())
+  id          String      @id @default(cuid())
   title       String
   description String?
   imageUrl    String
   latitude    Float
   longitude   Float
-  status      IssueStatus  @default(UNSOLVED)
+  status      IssueStatus  @default(PENDING)
   createdAt   DateTime     @default(now())
-  userId      Int
+  creatorId      String @map("userId")
 
-  user        User         @relation(fields: [userId], references: [id])
+  creator        User         @relation(fields: [creatorId], references: [id])
 
   @@index([latitude, longitude])
 }
