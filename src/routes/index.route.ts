@@ -1,7 +1,7 @@
 /** @format */
 
 import { Router } from "express";
-import { issuesRouter } from "./issues.route";
+import { issuesRouter } from "./issues.route.js";
 
 const router = Router();
 

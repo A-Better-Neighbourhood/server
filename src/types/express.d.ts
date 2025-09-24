@@ -7,6 +7,9 @@ declare global {
     interface Request {
       user?: {
         id: string;
+        contactNo: string;
+        fullName: string;
+        address: string;
       };
     }
   }
