@@ -1,6 +1,6 @@
 /** @format */
 
-import { Issue } from "../generated/prisma";
+import { Issue } from "@prisma/client";
 import { prisma } from "../lib/db";
 import { CreateReportType } from "../schemas/issues.schema";
 

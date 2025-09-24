@@ -1,10 +1,8 @@
 /** @format */
 
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "../generated/prisma/index";
 import { generateToken, JwtPayload } from "../utils/jwt";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/db";
 
 export interface AuthResponse {
   token: string;
