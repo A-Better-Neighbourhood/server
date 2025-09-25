@@ -8,12 +8,26 @@ import cors from "cors";
 
 const app = express();
 
-env.parse(process.env);
+const envVars = env.parse(process.env);
+
+// CORS origins based on environment
+const allowedOrigins = [
+  envVars.FRONTEND_URL,
+  "http://localhost:3000",
+  "http://localhost:3001",
+];
+
+// Add production frontend URL if different from env var
+if (envVars.NODE_ENV === "production") {
+  allowedOrigins.push("https://abn-phi.vercel.app");
+}
 
 app.use(
   cors({
-    origin: ["*", "https://abn-phi.vercel.app/", "http://localhost:3000"],
+    origin: allowedOrigins,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
   })
 );
 app.use(express.json());

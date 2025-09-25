@@ -6,9 +6,18 @@ import { authService } from "../services/auth.service";
 
 export const authMiddleware: RequestHandler = async (req, res, next) => {
   try {
-    const authHeader = req.cookies.token || req.headers.authorization;
-    console.log(req.cookies.token);
-    const token = authHeader;
+    // Try to get token from cookie first, then from Authorization header
+    let token: string | undefined;
+
+    if (req.cookies.token) {
+      token = req.cookies.token;
+    } else if (req.headers.authorization) {
+      // Extract token from "Bearer <token>" format
+      const authHeader = req.headers.authorization;
+      if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.substring(7); // Remove "Bearer " prefix
+      }
+    }
 
     if (!token) {
       return res.status(401).json({
