@@ -12,7 +12,7 @@ env.parse(process.env);
 
 app.use(
   cors({
-    origin: ["*"],
+    origin: ["*", "https://abn-phi.vercel.app/", "http://localhost:3000"],
     credentials: true,
   })
 );
