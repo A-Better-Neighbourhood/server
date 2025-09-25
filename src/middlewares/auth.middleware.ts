@@ -7,6 +7,7 @@ import { authService } from "../services/auth.service";
 export const authMiddleware: RequestHandler = async (req, res, next) => {
   try {
     const authHeader = req.cookies.token || req.headers.authorization;
+    console.log(req.cookies.token);
     const token = authHeader;
 
     if (!token) {
