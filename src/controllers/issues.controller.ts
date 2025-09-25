@@ -4,6 +4,7 @@ import { RequestHandler } from "express";
 import { issuesService } from "../services/issues.service";
 import { CreateReportSchema } from "../schemas/issues.schema";
 import { ResponseHandler } from "../utils/response";
+import { ZodError } from "zod";
 
 export const getIssues: RequestHandler = async (req, res) => {
   try {
@@ -60,6 +61,10 @@ export const createIssue: RequestHandler = async (req, res) => {
       201
     );
   } catch (error) {
+    if (error instanceof ZodError) {
+      return ResponseHandler.badRequest(res, "Validation error", error.issues);
+    }
+    console.log(error);
     return ResponseHandler.serverError(res);
   }
 };

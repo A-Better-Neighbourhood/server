@@ -6,8 +6,8 @@ import { authService } from "../services/auth.service";
 
 export const authMiddleware: RequestHandler = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    const token = extractTokenFromHeader(authHeader);
+    const authHeader = req.cookies.token || req.headers.authorization;
+    const token = authHeader;
 
     if (!token) {
       return res.status(401).json({
@@ -17,6 +17,9 @@ export const authMiddleware: RequestHandler = async (req, res, next) => {
     }
 
     const payload = verifyToken(token);
+
+    console.log(payload);
+
     if (!payload) {
       return res.status(401).json({
         success: false,
@@ -26,12 +29,15 @@ export const authMiddleware: RequestHandler = async (req, res, next) => {
 
     // Get user information and attach to request
     const user = await authService.getUserById(payload.userId);
+
     if (!user) {
       return res.status(401).json({
         success: false,
         message: "User not found",
       });
     }
+
+    console.log(user);
 
     req.user = {
       id: user.id,
@@ -42,6 +48,7 @@ export const authMiddleware: RequestHandler = async (req, res, next) => {
 
     next();
   } catch (error) {
+    console.log(error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",

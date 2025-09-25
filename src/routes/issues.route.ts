@@ -1,5 +1,8 @@
 /** @format */
 
+import { authMiddleware } from "./../middlewares/auth.middleware";
+/** @format */
+
 import { Router } from "express";
 import {
   getIssues,
@@ -17,7 +20,7 @@ const issuesRouter = Router();
 
 issuesRouter.get("/", getIssues);
 issuesRouter.get("/:issueId", getIssueById);
-issuesRouter.post("/", createIssue);
+issuesRouter.post("/", authMiddleware, createIssue);
 issuesRouter.get("/user", getUserIssues);
 issuesRouter.patch("/:issueId", updateIssue);
 issuesRouter.get("/unresolved", getUnresolvedIssues);
