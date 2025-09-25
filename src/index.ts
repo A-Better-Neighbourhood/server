@@ -4,11 +4,18 @@ import { env } from "./configs/env";
 import morgan from "morgan";
 import { router } from "./routes/index.route";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 
 const app = express();
 
 env.parse(process.env);
 
+app.use(
+  cors({
+    origin: ["*"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
