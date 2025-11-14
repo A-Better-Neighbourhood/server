@@ -5,6 +5,7 @@ import morgan from "morgan";
 import { router } from "./routes/index.route";
 import cookieParser from "cookie-parser";
 import cors from "cors";
+import path from "path";
 
 const app = express();
 
@@ -30,10 +31,13 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "10mb" })); // Increase limit for base64 images
 app.use(cookieParser());
 app.use(morgan("dev"));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Serve static files from uploads directory
+app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
 app.use("/api", router);
 

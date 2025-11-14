@@ -76,14 +76,11 @@ export class LocalStorageService implements StorageService {
     const filePath = this.getFilePath(fileName, options?.folder);
     const directory = path.dirname(filePath);
 
-    // Ensure directory exists
     await this.ensureDirectory(directory);
 
-    // Handle Buffer
     if (Buffer.isBuffer(file)) {
       await writeFile(filePath, file);
     } else {
-      // Handle stream
       const writeStream = fs.createWriteStream(filePath);
       await new Promise<void>((resolve, reject) => {
         file.pipe(writeStream);
@@ -92,7 +89,6 @@ export class LocalStorageService implements StorageService {
       });
     }
 
-    // Return the relative path from base directory
     return path.relative(this.baseDir, filePath);
   }
 
