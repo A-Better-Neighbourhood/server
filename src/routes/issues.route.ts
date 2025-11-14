@@ -1,8 +1,6 @@
 /** @format */
 
 import { authMiddleware } from "./../middlewares/auth.middleware";
-/** @format */
-
 import { Router } from "express";
 import {
   getIssues,
