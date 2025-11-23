@@ -1,12 +1,12 @@
 /** @format */
 
 import { Router } from "express";
-import { issuesRouter } from "./issues.route";
+import { reportsRouter } from "./reports.route";
 import { authRouter } from "./auth.route";
 
 const router = Router();
 
-router.use("/issues", issuesRouter);
+router.use("/reports", reportsRouter);
 router.use("/auth", authRouter);
 
 export { router };
