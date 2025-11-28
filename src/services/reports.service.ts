@@ -153,6 +153,13 @@ export class ReportsService {
   }
 
   /**
+   * Get annotated image path for a report (for debugging)
+   */
+  async getAnnotatedImagePath(reportId: string): Promise<string | null> {
+    return modelService.getAnnotatedImagePath(reportId);
+  }
+
+  /**
    * Check if model API is healthy
    */
   async checkModelHealth(): Promise<boolean> {

@@ -12,6 +12,8 @@ import {
   getUserResolvedReports,
   markReportAsResolved,
   getUserUnresolvedReports,
+  getModelAnalysis,
+  getModelHealth,
 } from "../controllers/reports.controller";
 
 const reportsRouter = Router();
@@ -25,5 +27,9 @@ reportsRouter.get("/unresolved", getUnresolvedReports);
 reportsRouter.get("/user/resolved", getUserResolvedReports);
 reportsRouter.patch("/:reportId/resolve", markReportAsResolved);
 reportsRouter.get("/user/unresolved", getUserUnresolvedReports);
+
+// Debug routes (development only)
+reportsRouter.get("/debug/:reportId/analysis", getModelAnalysis);
+reportsRouter.get("/debug/model/health", getModelHealth);
 
 export { reportsRouter };

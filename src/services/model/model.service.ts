@@ -96,26 +96,30 @@ export class ModelService {
 
   /**
    * Evaluate prediction to determine if it's a valid pothole
-   * Adjust this logic based on actual model response structure
+   * Based on actual model response structure
    */
   private evaluatePrediction(prediction: any): boolean {
-    // Example logic - adjust based on actual model response
-    if (prediction.confidence && prediction.confidence > 0.5) {
+    // Check if the prediction was successful
+    if (!prediction.success) {
+      return false;
+    }
+
+    // Check if any potholes were detected
+    if (prediction.count && prediction.count > 0) {
       return true;
     }
 
-    if (prediction.detected_objects && prediction.detected_objects.length > 0) {
-      return true;
-    }
-
-    if (prediction.predictions) {
-      // Add logic based on predictions structure
-      return true;
+    // Check if we have detections array with potholes
+    if (prediction.detections && Array.isArray(prediction.detections)) {
+      const potholeDetections = prediction.detections.filter(
+        (detection: any) =>
+          detection.class === "pothole" && detection.confidence > 0.5
+      );
+      return potholeDetections.length > 0;
     }
 
     return false;
   }
-
   /**
    * Save prediction result to local storage for debugging
    */
@@ -124,13 +128,56 @@ export class ModelService {
     result: ModelPredictionResult
   ): Promise<void> {
     try {
-      const filename = `${reportId}-${Date.now()}.json`;
+      const timestamp = Date.now();
+      const filename = `${reportId}-${timestamp}.json`;
       const filePath = path.join(this.resultsDir, filename);
 
       await fs.writeFile(filePath, JSON.stringify(result, null, 2), "utf-8");
       console.log(`Model prediction result saved: ${filename}`);
+
+      // Save annotated image if present
+      if (result.prediction?.annotated_image) {
+        await this.saveAnnotatedImage(
+          reportId,
+          result.prediction.annotated_image,
+          timestamp
+        );
+      }
     } catch (error) {
       console.error("Failed to save model result:", error);
+    }
+  }
+
+  /**
+   * Save the annotated image from model response
+   */
+  private async saveAnnotatedImage(
+    reportId: string,
+    base64Image: string,
+    timestamp: number
+  ): Promise<void> {
+    try {
+      // Parse the base64 image data
+      const matches = base64Image.match(
+        /^data:image\/([a-zA-Z+]+);base64,(.+)$/
+      );
+
+      if (!matches) {
+        console.error("Invalid base64 image format");
+        return;
+      }
+
+      const extension = matches[1].replace("+", "");
+      const base64Data = matches[2];
+      const imageBuffer = Buffer.from(base64Data, "base64");
+
+      const imageFilename = `${reportId}-${timestamp}-annotated.${extension}`;
+      const imageFilePath = path.join(this.resultsDir, imageFilename);
+
+      await fs.writeFile(imageFilePath, imageBuffer);
+      console.log(`Annotated image saved: ${imageFilename}`);
+    } catch (error) {
+      console.error("Failed to save annotated image:", error);
     }
   }
 
@@ -153,6 +200,30 @@ export class ModelService {
       return JSON.parse(content);
     } catch (error) {
       console.error(`Failed to get result for report ${reportId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get path to annotated image for a report (if exists)
+   */
+  async getAnnotatedImagePath(reportId: string): Promise<string | null> {
+    try {
+      const files = await fs.readdir(this.resultsDir);
+      const imageFile = files.find(
+        (file) => file.startsWith(reportId) && file.includes("-annotated.")
+      );
+
+      if (!imageFile) {
+        return null;
+      }
+
+      return path.join(this.resultsDir, imageFile);
+    } catch (error) {
+      console.error(
+        `Failed to find annotated image for report ${reportId}:`,
+        error
+      );
       return null;
     }
   }

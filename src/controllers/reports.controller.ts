@@ -163,3 +163,52 @@ export const getUserUnresolvedReports: RequestHandler = async (req, res) => {
     return ResponseHandler.serverError(res);
   }
 };
+
+// Debug endpoints (only in development)
+export const getModelAnalysis: RequestHandler = async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return ResponseHandler.notFound(
+      res,
+      "Endpoint not available in production"
+    );
+  }
+
+  const { reportId } = req.params;
+  try {
+    const analysis = await reportsService.getModelAnalysis(reportId);
+    if (!analysis) {
+      return ResponseHandler.notFound(
+        res,
+        "Model analysis not found for this report"
+      );
+    }
+
+    return ResponseHandler.success(
+      res,
+      analysis,
+      "Model analysis retrieved successfully"
+    );
+  } catch (error) {
+    return ResponseHandler.serverError(res);
+  }
+};
+
+export const getModelHealth: RequestHandler = async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return ResponseHandler.notFound(
+      res,
+      "Endpoint not available in production"
+    );
+  }
+
+  try {
+    const isHealthy = await reportsService.checkModelHealth();
+    return ResponseHandler.success(
+      res,
+      { healthy: isHealthy },
+      isHealthy ? "Model API is healthy" : "Model API is not responding"
+    );
+  } catch (error) {
+    return ResponseHandler.serverError(res);
+  }
+};
