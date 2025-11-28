@@ -23,9 +23,7 @@ interface HTTPValidationError {
 export class ModelApiClient {
   private baseUrl: string;
 
-  constructor(
-    baseUrl: string = process.env.MODEL_API_URL || "http://localhost:8000"
-  ) {
+  constructor(baseUrl: string = process.env.MODEL_API_URL) {
     this.baseUrl = baseUrl.replace(/\/$/, ""); // Remove trailing slash
   }
 
