@@ -5,6 +5,7 @@ import { prisma } from "../lib/db";
 import { CreateReportType } from "../schemas/reports.schema";
 import { ImageService } from "./image.service";
 import { LocalStorageService } from "./storage";
+import { modelService, ModelPredictionResult } from "./model/model.service.js";
 
 export class ReportsService {
   private imageService: ImageService;
@@ -57,7 +58,8 @@ export class ReportsService {
       "reports"
     );
 
-    return prisma.report.create({
+    // Create the report first
+    const report = await prisma.report.create({
       data: {
         title: data.title,
         description: data.description,
@@ -69,6 +71,18 @@ export class ReportsService {
         },
       },
     });
+
+    // Analyze the image with the model (async, don't wait for it)
+    modelService
+      .analyzeImage(buffer, originalName, mimeType, report.id)
+      .catch((error) => {
+        console.error(
+          `Failed to analyze image for report ${report.id}:`,
+          error
+        );
+      });
+
+    return report;
   }
 
   async getReports(): Promise<Report[]> {
@@ -127,6 +141,22 @@ export class ReportsService {
         },
       },
     });
+  }
+
+  /**
+   * Get model analysis result for a report (for debugging)
+   */
+  async getModelAnalysis(
+    reportId: string
+  ): Promise<ModelPredictionResult | null> {
+    return modelService.getResultByReportId(reportId);
+  }
+
+  /**
+   * Check if model API is healthy
+   */
+  async checkModelHealth(): Promise<boolean> {
+    return modelService.checkHealth();
   }
 }
 
