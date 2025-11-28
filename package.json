@@ -12,7 +12,7 @@
   },
   "license": "ISC",
   "author": "",
-  "type": "commonjs",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "build": "npx tsc",
@@ -23,7 +23,8 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@prisma/client": "^6.16.0",
+    "@prisma/adapter-pg": "^7.0.1",
+    "@prisma/client": "^7.0.1",
     "@types/cookie-parser": "^1.4.9",
     "@types/morgan": "^1.9.10",
     "bcryptjs": "^3.0.2",
@@ -34,7 +35,6 @@
     "firebase-admin": "^13.5.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.1",
-    "prisma": "^6.16.0",
     "tsx": "^4.20.5",
     "winston": "^3.17.0",
     "zod": "^4.1.5"
@@ -46,6 +46,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.3.1",
     "nodemon": "^3.1.10",
+    "prisma": "^7.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   }

@@ -1,6 +1,6 @@
 /** @format */
 
-import { Report } from "@prisma/client";
+import { Report } from "../generated/client/client.js";
 import { prisma } from "../lib/db";
 import { CreateReportType } from "../schemas/reports.schema";
 import { ImageService } from "./image.service";

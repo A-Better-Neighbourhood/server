@@ -1,6 +1,9 @@
 /** @format */
 
+import { configDotenv } from "dotenv";
 import z from "zod";
+
+configDotenv();
 
 export const env = z.object({
   NODE_ENV: z
