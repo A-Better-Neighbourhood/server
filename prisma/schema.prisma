@@ -17,7 +17,10 @@ enum IssueStatus {
   RESOLVED
   PENDING
   IN_PROGRESS
+  ARCHIVED    // For duplicate issues
 }
+
+
 
 model User {
   id        String   @id @default(cuid())
@@ -28,6 +31,8 @@ model User {
   contactNo String   @unique 
 
   issues    Issue[] 
+  activities Activity[]
+  comments  Comment[]
 
   @@map("user")
 }
@@ -36,15 +41,60 @@ model Issue {
   id          String      @id @default(cuid())
   title       String
   description String?
-  imageUrl    String
+  imageUrl    String      // Now supports array of image URLs (JSON)
   latitude    Float
   longitude   Float
   status      IssueStatus  @default(PENDING)
   createdAt   DateTime     @default(now())
   creatorId      String @map("userId")
   upvotes    Int          @default(0)
+  
+  // Deduplication fields
+  isDuplicate      Boolean  @default(false)
+  parentIssueId    String?  // Reference to original issue if this is a duplicate
+  mergedIssueIds   String[] @default([]) // Array of issue IDs that were merged into this one
+  imageHashes      String[] @default([]) // Array of pHash values for image similarity
 
   creator        User         @relation(fields: [creatorId], references: [id])
+  activities     Activity[]
+  comments       Comment[]
+  parentIssue    Issue?       @relation("IssueDuplicates", fields: [parentIssueId], references: [id])
+  duplicates     Issue[]      @relation("IssueDuplicates")
 
   @@index([latitude, longitude])
+  @@index([isDuplicate])
+}
+
+model Activity {
+  id         String   @id @default(uuid())
+  issueId    String
+  issue      Issue    @relation(fields: [issueId], references: [id])
+  type       String   // EX: "CREATED", "COMMENT_ADDED", "STATUS_UPDATED"
+  message    String?
+  createdAt  DateTime @default(now())
+  createdBy  User?    @relation(fields: [createdById], references: [id])
+  createdById String?
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  text      String
+  issueId   String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("comment")
+}
+
+model Upvote {
+  id        String   @id @default(uuid())
+  issueId   String
+  issue     Issue    @relation(fields: [issueId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
 }

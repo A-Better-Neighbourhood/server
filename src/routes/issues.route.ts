@@ -12,6 +12,11 @@ import {
   getUserResolvedIssues,
   markIssueAsResolved,
   getUserUnresolvedIssues,
+  getNearbyIssues,
+  getIssueActivities,
+  addComment,
+  getComments,
+  upvoteIssue
 } from "../controllers/issues.controller";
 
 const issuesRouter = Router();
@@ -25,5 +30,14 @@ issuesRouter.get("/unresolved", getUnresolvedIssues);
 issuesRouter.get("/user/resolved", getUserResolvedIssues);
 issuesRouter.patch("/:issueId/resolve", markIssueAsResolved);
 issuesRouter.get("/user/unresolved", getUserUnresolvedIssues);
+issuesRouter.get("/nearby", getNearbyIssues);
+issuesRouter.get("/:id/activities", getIssueActivities);
+issuesRouter.post("/:id/comments", authMiddleware, addComment);
+issuesRouter.get("/:id/comments", getComments);
+issuesRouter.post("/:id/upvote", authMiddleware, upvoteIssue);
+
+
+
+
 
 export { issuesRouter };
