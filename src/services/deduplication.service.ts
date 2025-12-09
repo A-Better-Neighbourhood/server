@@ -25,7 +25,7 @@ export class DeduplicationService {
     try {
       // Step 1: Find candidate nearby issues using geospatial query
       const nearbyIssues = await this.findNearbyIssues(latitude, longitude);
-      
+
       if (nearbyIssues.length === 0) {
         return { isDuplicate: false };
       }
@@ -90,7 +90,7 @@ export class DeduplicationService {
         const originalImages = Array.isArray(originalIssue.imageUrl)
           ? originalIssue.imageUrl
           : [originalIssue.imageUrl];
-        
+
         const duplicateImages = Array.isArray(duplicateIssue.imageUrl)
           ? duplicateIssue.imageUrl
           : [duplicateIssue.imageUrl];
@@ -140,37 +140,26 @@ export class DeduplicationService {
   }
 
   /**
-   * Find issues within deduplication radius
+   * Find issues within deduplication radius using PostGIS
    */
   private async findNearbyIssues(
     latitude: number,
     longitude: number
   ): Promise<Issue[]> {
-    // Get all non-archived, non-resolved issues and filter by distance
-    const allIssues = await prisma.issue.findMany({
-      where: {
-        status: {
-          notIn: ["RESOLVED", "ARCHIVED"],
-        },
-        isDuplicate: false,
-      },
-      include: {
-        creator: {
-          select: { id: true, fullName: true },
-        },
-      },
-    });
+    // Convert radius from km to meters for PostGIS
+    const radiusInMeters = this.DEDUPLICATION_RADIUS_KM * 1000;
 
-    // Filter by distance using Haversine formula
-    const nearbyIssues = allIssues.filter((issue) => {
-      const distance = this.calculateDistance(
-        latitude,
-        longitude,
-        issue.latitude,
-        issue.longitude
-      );
-      return distance <= this.DEDUPLICATION_RADIUS_KM;
-    });
+    // Use PostGIS ST_DWithin for efficient geospatial filtering
+    const nearbyIssues = await prisma.$queryRaw<Issue[]>`
+      SELECT * FROM "Issue" 
+      WHERE status NOT IN ('RESOLVED', 'ARCHIVED')
+        AND "isDuplicate" = false
+        AND ST_DWithin(
+          ST_SetSRID(ST_MakePoint(longitude, latitude), 4326),
+          ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326),
+          ${radiusInMeters}
+        )
+    `;
 
     return nearbyIssues;
   }
@@ -273,32 +262,6 @@ export class DeduplicationService {
     const union = new Set([...set1, ...set2]);
 
     return intersection.size / union.size;
-  }
-
-  /**
-   * Calculate distance between two coordinates (Haversine formula)
-   */
-  private calculateDistance(
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ): number {
-    const R = 6371; // Earth's radius in kilometers
-    const dLat = this.toRadians(lat2 - lat1);
-    const dLon = this.toRadians(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(this.toRadians(lat1)) *
-        Math.cos(this.toRadians(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
-
-  private toRadians(degrees: number): number {
-    return degrees * (Math.PI / 180);
   }
 
   /**

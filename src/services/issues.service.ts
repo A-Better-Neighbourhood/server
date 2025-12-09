@@ -251,74 +251,40 @@ export class IssuesService {
         throw new Error("Radius must be between 0.1 and 100 kilometers");
       }
 
-      // Get all unresolved issues with creator information
-      const allIssues = await prisma.issue.findMany({
-        where: {
-          status: {
-            not: "RESOLVED", // Exclude resolved issues
-          },
-        },
-        include: {
-          creator: {
-            select: {
-              id: true,
-              fullName: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: "desc", // Most recent first
-        },
-      });
+      // Use PostGIS ST_DWithin for efficient spatial query
+      const nearbyIssues = await prisma.$queryRaw`
+        SELECT 
+          i.*,
+          u.id as creator_id,
+          u."fullName" as creator_name,
+          ST_Distance(
+            ST_GeogFromText('POINT(' || ${longitude} || ' ' || ${latitude} || ')'),
+            ST_GeogFromText('POINT(' || i.longitude || ' ' || i.latitude || ')')
+          ) / 1000 as distance
+        FROM "Issue" i
+        JOIN "user" u ON i."creatorId" = u.id
+        WHERE 
+          i.status != 'RESOLVED'
+          AND ST_DWithin(
+            ST_GeogFromText('POINT(' || ${longitude} || ' ' || ${latitude} || ')'),
+            ST_GeogFromText('POINT(' || i.longitude || ' ' || i.latitude || ')'),
+            ${radiusKm * 1000}
+          )
+        ORDER BY distance ASC
+      `;
 
-      // Calculate distance using Haversine formula and filter within radius
-      const nearbyIssues = allIssues
-        .map((issue) => {
-          const distance = this.calculateDistance(
-            latitude,
-            longitude,
-            issue.latitude,
-            issue.longitude
-          );
-          return {
-            ...issue,
-            distance: Math.round(distance * 100) / 100, // Round to 2 decimal places
-          };
-        })
-        .filter((issue) => issue.distance <= radiusKm)
-        .sort((a, b) => a.distance - b.distance); // Sort by distance (closest first)
-
-      return nearbyIssues;
+      return nearbyIssues.map((issue: any) => ({
+        ...issue,
+        distance: Math.round(issue.distance * 100) / 100,
+        creator: {
+          id: issue.creator_id,
+          fullName: issue.creator_name,
+        },
+      }));
     } catch (error) {
       console.error("Error fetching nearby issues:", error);
       throw error;
     }
-  }
-
-  private calculateDistance(
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ): number {
-    const R = 6371; // Earth's radius in kilometers
-    const dLat = this.toRadians(lat2 - lat1);
-    const dLon = this.toRadians(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(this.toRadians(lat1)) *
-        Math.cos(this.toRadians(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
-
-  /**
-   * Convert degrees to radians
-   */
-  private toRadians(degrees: number): number {
-    return degrees * (Math.PI / 180);
   }
 
   async logActivity(
