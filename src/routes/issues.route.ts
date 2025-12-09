@@ -16,28 +16,24 @@ import {
   getIssueActivities,
   addComment,
   getComments,
-  upvoteIssue
+  upvoteIssue,
 } from "../controllers/issues.controller";
 
 const issuesRouter = Router();
 
 issuesRouter.get("/", getIssues);
-issuesRouter.get("/:issueId", getIssueById);
 issuesRouter.post("/", authMiddleware, createIssue);
-issuesRouter.get("/user", getUserIssues);
-issuesRouter.patch("/:issueId", updateIssue);
-issuesRouter.get("/unresolved", getUnresolvedIssues);
-issuesRouter.get("/user/resolved", getUserResolvedIssues);
-issuesRouter.patch("/:issueId/resolve", markIssueAsResolved);
-issuesRouter.get("/user/unresolved", getUserUnresolvedIssues);
-issuesRouter.get("/nearby", getNearbyIssues);
-issuesRouter.get("/:id/activities", getIssueActivities);
+issuesRouter.get("/user", authMiddleware, getUserIssues);
+issuesRouter.get("/user/resolved", authMiddleware, getUserResolvedIssues);
+issuesRouter.get("/user/unresolved", authMiddleware, getUserUnresolvedIssues);
+issuesRouter.get("/unresolved", authMiddleware, getUnresolvedIssues);
+issuesRouter.get("/nearby", authMiddleware, getNearbyIssues);
+issuesRouter.get("/:issueId", authMiddleware, getIssueById);
+issuesRouter.patch("/:issueId", authMiddleware, updateIssue); //Isme Kya update krna Do it YourSelf
+issuesRouter.patch("/:issueId/resolve", authMiddleware, markIssueAsResolved); 
+issuesRouter.get("/:id/activities", authMiddleware, getIssueActivities);
 issuesRouter.post("/:id/comments", authMiddleware, addComment);
-issuesRouter.get("/:id/comments", getComments);
+issuesRouter.get("/:id/comments", authMiddleware, getComments);
 issuesRouter.post("/:id/upvote", authMiddleware, upvoteIssue);
-
-
-
-
 
 export { issuesRouter };

@@ -5,7 +5,10 @@ import { prisma } from "../lib/db";
 import { CreateReportType } from "../schemas/issues.schema";
 import { ImageService } from "./image.service";
 import { LocalStorageService } from "./storage";
-import { deduplicationService, DeduplicationService } from "./deduplication.service";
+import {
+  deduplicationService,
+  DeduplicationService,
+} from "./deduplication.service";
 
 export class IssuesService {
   private imageService: ImageService;
@@ -44,7 +47,10 @@ export class IssuesService {
     };
   }
 
-  async createIssue(creatorId: string, data: CreateReportType): Promise<{
+  async createIssue(
+    creatorId: string,
+    data: CreateReportType
+  ): Promise<{
     issue: Issue;
     isDuplicate: boolean;
     originalIssue?: Issue;
@@ -86,9 +92,7 @@ export class IssuesService {
           isDuplicate: true,
           status: "ARCHIVED",
           parentIssueId: duplicateCheck.originalIssue.id,
-          creator: {
-            connect: { id: creatorId },
-          },
+          creatorId: creatorId,
         },
       });
 
@@ -148,12 +152,6 @@ export class IssuesService {
 
   async getIssues(): Promise<Issue[]> {
     return prisma.issue.findMany({
-      where: {
-        isDuplicate: false, // Exclude duplicates from public view
-        status: {
-          not: "ARCHIVED", // Also exclude archived issues
-        },
-      },
       include: {
         creator: {
           select: { id: true, fullName: true },
@@ -400,29 +398,25 @@ export class IssuesService {
   }
 
   async upvoteIssue(issueId: string, userId: string) {
-  // Check if already upvoted
-  const already = await prisma.upvote.findFirst({
-    where: { issueId, userId },
-  });
+    // Check if already upvoted
+    const already = await prisma.upvote.findFirst({
+      where: { issueId, userId },
+    });
 
-  if (already) return null; // user already upvoted
+    if (already) return null; // user already upvoted
 
-  await prisma.upvote.create({
-    data: { issueId, userId },
-  });
+    await prisma.upvote.create({
+      data: { issueId, userId },
+    });
 
-  // Increase count column if you maintain one
-  return prisma.issue.update({
-    where: { id: issueId },
-    data: {
-      upvoteCount: { increment: 1 },
-    },
-  });
-}
-
-
-
-
+    // Increase count column if you maintain one
+    return prisma.issue.update({
+      where: { id: issueId },
+      data: {
+        upvotes: { increment: 1 },
+      },
+    });
+  }
 }
 
 export const issuesService = new IssuesService();

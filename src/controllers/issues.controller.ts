@@ -114,7 +114,7 @@ export const getUserIssues: RequestHandler = async (req, res) => {
   }
 };
 
-export const updateIssue: RequestHandler = async (req, res) => {};
+export const updateIssue: RequestHandler = async (req, res) => {};  //Complete This
 
 export const getUnresolvedIssues: RequestHandler = async (req, res) => {
   try {
