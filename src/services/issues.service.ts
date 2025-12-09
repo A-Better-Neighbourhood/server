@@ -252,7 +252,7 @@ export class IssuesService {
       }
 
       // Use PostGIS ST_DWithin for efficient spatial query
-      const nearbyIssues = await prisma.$queryRaw`
+      const nearbyIssues = await prisma.$queryRaw<any[]>`
         SELECT 
           i.*,
           u.id as creator_id,
@@ -262,7 +262,7 @@ export class IssuesService {
             ST_GeogFromText('POINT(' || i.longitude || ' ' || i.latitude || ')')
           ) / 1000 as distance
         FROM "Issue" i
-        JOIN "user" u ON i."creatorId" = u.id
+        JOIN "User" u ON i."creatorId" = u.id
         WHERE 
           i.status != 'RESOLVED'
           AND ST_DWithin(
