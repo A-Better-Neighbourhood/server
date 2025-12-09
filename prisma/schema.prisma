@@ -33,6 +33,7 @@ model User {
   issues    Issue[] 
   activities Activity[]
   comments  Comment[]
+  upvotes   Upvote[]
 
   @@map("user")
 }
@@ -58,6 +59,7 @@ model Issue {
   creator        User         @relation(fields: [creatorId], references: [id])
   activities     Activity[]
   comments       Comment[]
+  userUpvotes    Upvote[]
   parentIssue    Issue?       @relation("IssueDuplicates", fields: [parentIssueId], references: [id])
   duplicates     Issue[]      @relation("IssueDuplicates")
 
