@@ -34,7 +34,7 @@ model Report {
   id          String       @id @default(cuid())
   title       String
   description String?
-  imageUrl    String      // Now supports array of image URLs (JSON)
+  imageUrl    String[]      // Now supports array of image URLs (JSON)
   latitude    Float
   longitude   Float
   status      ReportStatus @default(PENDING)

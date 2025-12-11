@@ -84,7 +84,7 @@ export class ReportsService {
         data: {
           title: data.title,
           description: data.description,
-          imageUrl: JSON.stringify([imageUrl]),
+          imageUrl: [imageUrl],
           latitude: data.location[0],
           longitude: data.location[1],
           isDuplicate: true,
@@ -122,7 +122,7 @@ export class ReportsService {
       data: {
         title: data.title,
         description: data.description,
-        imageUrl: JSON.stringify([imageUrl]),
+        imageUrl: [imageUrl],
         latitude: data.location[0],
         longitude: data.location[1],
         upvotes: 1, // Auto-upvote by creator

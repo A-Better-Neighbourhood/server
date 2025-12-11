@@ -83,7 +83,7 @@ export class DeduplicationService {
         const updatedOriginal = await tx.report.update({
           where: { id: originalReportId },
           data: {
-            imageUrl: JSON.stringify(mergedImages),
+            imageUrl: mergedImages,
             upvotes: mergedUpvotes,
             mergedReportIds: mergedReportIds,
           },
