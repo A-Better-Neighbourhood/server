@@ -1,19 +1,13 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/client"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
-enum IssueStatus {
+enum ReportStatus {
   RESOLVED
   PENDING
   IN_PROGRESS
@@ -27,24 +21,24 @@ model User {
   createdAt DateTime @default(now())
   contactNo String   @unique 
 
-  issues    Issue[] 
+  reports   Report[] 
 
   @@map("user")
 }
 
-model Issue {
-  id          String      @id @default(cuid())
+model Report {
+  id          String       @id @default(cuid())
   title       String
   description String?
   imageUrl    String
   latitude    Float
   longitude   Float
-  status      IssueStatus  @default(PENDING)
+  status      ReportStatus @default(PENDING)
   createdAt   DateTime     @default(now())
-  creatorId      String @map("userId")
-  upvotes    Int          @default(0)
+  creatorId   String       @map("userId")
+  upvotes     Int          @default(0)
 
-  creator        User         @relation(fields: [creatorId], references: [id])
+  creator     User         @relation(fields: [creatorId], references: [id])
 
   @@index([latitude, longitude])
 }
