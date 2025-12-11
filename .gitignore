@@ -5,3 +5,4 @@ dist
 .vscode
 /src/generated/prisma
 uploads
+src/generated
