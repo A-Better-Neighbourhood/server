@@ -1,14 +1,24 @@
 /** @format */
 
 import { Router } from "express";
-import { issuesRouter } from "./issues.route";
+import { reportsRouter } from "./reports.route";
 import { authRouter } from "./auth.route";
 import { internalRouter } from "./internal.route";
+import express from "express";
+import path from "path";
 
 const router = Router();
 
-router.use("/issues", issuesRouter);
+router.use("/reports", reportsRouter);
 router.use("/auth", authRouter);
 router.use("/internal", internalRouter);
+
+// Debug route to serve model analysis results
+if (process.env.NODE_ENV !== "production") {
+  router.use(
+    "/debug/model-results",
+    express.static(path.join(process.cwd(), "uploads", "model-results"))
+  );
+}
 
 export { router };

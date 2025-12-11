@@ -1,15 +1,14 @@
 /** @format */
 
-import { Issue } from "@prisma/client";
 import { prisma } from "../lib/db";
-import { issuesService } from "./issues.service";
+import { Report } from "../generated/client/client";
 
 export class DeduplicationService {
   private readonly DEDUPLICATION_RADIUS_KM = 0.05; // 50 meters
   private readonly SIMILARITY_THRESHOLD = 0.85; // 85% similarity threshold
 
   /**
-   * Check if a new report is similar to existing issues
+   * Check if a new report is similar to existing reports
    */
   async checkForDuplicates(
     latitude: number,
@@ -19,30 +18,30 @@ export class DeduplicationService {
     description?: string
   ): Promise<{
     isDuplicate: boolean;
-    originalIssue?: Issue;
+    originalreport?: Report;
     similarity?: number;
   }> {
     try {
-      // Step 1: Find candidate nearby issues using geospatial query
-      const nearbyIssues = await this.findNearbyIssues(latitude, longitude);
+      // Step 1: Find candidate nearby reports using geospatial query
+      const nearbyreports = await this.findNearbyreports(latitude, longitude);
 
-      if (nearbyIssues.length === 0) {
+      if (nearbyreports.length === 0) {
         return { isDuplicate: false };
       }
 
       // Step 2: Check image similarity using pHash
-      const similarIssue = await this.findSimilarIssue(
-        nearbyIssues,
+      const similarreport = await this.findSimilarreport(
+        nearbyreports,
         imageHash,
         title,
         description
       );
 
-      if (similarIssue) {
+      if (similarreport) {
         return {
           isDuplicate: true,
-          originalIssue: similarIssue.issue,
-          similarity: similarIssue.similarity,
+          originalreport: similarreport.report,
+          similarity: similarreport.similarity,
         };
       }
 
@@ -54,76 +53,75 @@ export class DeduplicationService {
   }
 
   /**
-   * Merge a duplicate issue into an original issue
+   * Merge a duplicate report into an original report
    */
-  async mergeIssues(
-    duplicateIssueId: string,
-    originalIssueId: string,
+  async mergeReports(
+    duplicateReportId: string,
+    originalReportId: string,
     mergedBy?: string
-  ): Promise<Issue> {
+  ): Promise<Report> {
     try {
-      const duplicateIssue = await prisma.issue.findUnique({
-        where: { id: duplicateIssueId },
+      const duplicateReport = await prisma.report.findUnique({
+        where: { id: duplicateReportId },
       });
 
-      const originalIssue = await prisma.issue.findUnique({
-        where: { id: originalIssueId },
+      const originalReport = await prisma.report.findUnique({
+        where: { id: originalReportId },
       });
 
-      if (!duplicateIssue || !originalIssue) {
-        throw new Error("Issue not found for merging");
+      if (!duplicateReport || !originalReport) {
+        throw new Error("report not found for merging");
       }
 
-      // Begin transaction to merge issues
+      // Begin transaction to merge reports
       const result = await prisma.$transaction(async (tx) => {
         // 1. Mark duplicate as archived
-        await tx.issue.update({
-          where: { id: duplicateIssueId },
+        await tx.report.update({
+          where: { id: duplicateReportId },
           data: {
             status: "ARCHIVED",
             isDuplicate: true,
-            parentIssueId: originalIssueId,
+            parentReportId: originalReportId,
           },
         });
 
-        // 2. Update original issue with merged data
-        const originalImages = Array.isArray(originalIssue.imageUrl)
-          ? originalIssue.imageUrl
-          : [originalIssue.imageUrl];
+        // 2. Update original report with merged data
+        const originalImages = Array.isArray(originalReport.imageUrl)
+          ? originalReport.imageUrl
+          : [originalReport.imageUrl];
 
-        const duplicateImages = Array.isArray(duplicateIssue.imageUrl)
-          ? duplicateIssue.imageUrl
-          : [duplicateIssue.imageUrl];
-
+        const duplicateImages = Array.isArray(duplicateReport.imageUrl)
+          ? duplicateReport.imageUrl
+          : [duplicateReport.imageUrl];
         const mergedImages = [...originalImages, ...duplicateImages];
-        const mergedUpvotes = originalIssue.upvotes + duplicateIssue.upvotes;
-        const mergedIssueIds = [
-          ...(originalIssue.mergedIssueIds || []),
-          duplicateIssueId,
+        const mergedUpvotes = originalReport.upvotes + duplicateReport.upvotes;
+        const mergedReportIds = [
+          ...(originalReport.mergedReportIds || []),
+          duplicateReportId,
         ];
 
-        const updatedOriginal = await tx.issue.update({
-          where: { id: originalIssueId },
+        const updatedOriginal = await tx.report.update({
+          where: { id: originalReportId },
           data: {
             imageUrl: JSON.stringify(mergedImages),
             upvotes: mergedUpvotes,
-            mergedIssueIds: mergedIssueIds,
+            mergedReportIds: mergedReportIds,
           },
         });
 
-        // 3. Log activities for both issues
+        // 3. Log activities for both reports
         await tx.activity.createMany({
           data: [
             {
-              issueId: originalIssueId,
+              reportId: originalReportId,
               type: "ISSUE_MERGED",
-              message: `Issue merged with duplicate report (ID: ${duplicateIssueId})`,
+              message: `report merged with duplicate report (ID: ${duplicateReportId})`,
               createdById: mergedBy,
             },
             {
-              issueId: duplicateIssueId,
+              reportId: duplicateReportId,
               type: "DUPLICATE_ARCHIVED",
-              message: `Issue marked as duplicate of ${originalIssueId}`,
+              message: `report marked as duplicate of ${originalReportId}`,
               createdById: mergedBy,
             },
           ],
@@ -134,24 +132,24 @@ export class DeduplicationService {
 
       return result;
     } catch (error) {
-      console.error("Error merging issues:", error);
+      console.error("Error merging reports:", error);
       throw error;
     }
   }
 
   /**
-   * Find issues within deduplication radius using PostGIS
+   * Find reports within deduplication radius using PostGIS
    */
-  private async findNearbyIssues(
+  private async findNearbyreports(
     latitude: number,
     longitude: number
-  ): Promise<Issue[]> {
+  ): Promise<Report[]> {
     // Convert radius from km to meters for PostGIS
     const radiusInMeters = this.DEDUPLICATION_RADIUS_KM * 1000;
 
     // Use PostGIS ST_DWithin for efficient geospatial filtering
-    const nearbyIssues = await prisma.$queryRaw<Issue[]>`
-      SELECT * FROM "Issue" 
+    const nearbyreports = await prisma.$queryRaw<Report[]>`
+      SELECT * FROM "report" 
       WHERE status NOT IN ('RESOLVED', 'ARCHIVED')
         AND "isDuplicate" = false
         AND ST_DWithin(
@@ -161,33 +159,33 @@ export class DeduplicationService {
         )
     `;
 
-    return nearbyIssues;
+    return nearbyreports;
   }
 
   /**
-   * Find similar issue based on image hash and text similarity
+   * Find similar report based on image hash and text similarity
    */
-  private async findSimilarIssue(
-    candidateIssues: Issue[],
+  private async findSimilarreport(
+    candidateReports: Report[],
     newImageHash: string,
     newTitle: string,
     newDescription?: string
-  ): Promise<{ issue: Issue; similarity: number } | null> {
-    let bestMatch: { issue: Issue; similarity: number } | null = null;
+  ): Promise<{ report: Report; similarity: number } | null> {
+    let bestMatch: { report: Report; similarity: number } | null = null;
 
-    for (const issue of candidateIssues) {
+    for (const report of candidateReports) {
       // Check image similarity using pHash
       const imageSimilarity = this.calculateImageSimilarity(
         newImageHash,
-        issue.imageHashes
+        report.imageHashes
       );
 
       // Check text similarity
       const textSimilarity = this.calculateTextSimilarity(
         newTitle,
         newDescription || "",
-        issue.title,
-        issue.description || ""
+        report.title,
+        report.description || ""
       );
 
       // Combined similarity score (weighted: 70% image, 30% text)
@@ -197,7 +195,7 @@ export class DeduplicationService {
         combinedSimilarity >= this.SIMILARITY_THRESHOLD &&
         (!bestMatch || combinedSimilarity > bestMatch.similarity)
       ) {
-        bestMatch = { issue, similarity: combinedSimilarity };
+        bestMatch = { report, similarity: combinedSimilarity };
       }
     }
 

@@ -1,26 +1,17 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/client"
 }
-
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
-enum IssueStatus {
+enum ReportStatus {
   RESOLVED
   PENDING
   IN_PROGRESS
-  ARCHIVED    // For duplicate issues
+  ARCHIVED    // For duplicate Reports
 }
-
-
 
 model User {
   id        String   @id @default(cuid())
@@ -30,38 +21,39 @@ model User {
   createdAt DateTime @default(now())
   contactNo String   @unique 
 
-  issues    Issue[] 
   activities Activity[]
   comments  Comment[]
   upvotes   Upvote[]
 
+  reports   Report[] 
+
   @@map("user")
 }
 
-model Issue {
-  id          String      @id @default(cuid())
+model Report {
+  id          String       @id @default(cuid())
   title       String
   description String?
   imageUrl    String      // Now supports array of image URLs (JSON)
   latitude    Float
   longitude   Float
-  status      IssueStatus  @default(PENDING)
+  status      ReportStatus @default(PENDING)
   createdAt   DateTime     @default(now())
   creatorId      String @map("userId")
   upvotes    Int          @default(0)
   
   // Deduplication fields
   isDuplicate      Boolean  @default(false)
-  parentIssueId    String?  // Reference to original issue if this is a duplicate
-  mergedIssueIds   String[] @default([]) // Array of issue IDs that were merged into this one
+  parentReportId    String?  // Reference to original Report if this is a duplicate
+  mergedReportIds   String[] @default([]) // Array of Report IDs that were merged into this one
   imageHashes      String[] @default([]) // Array of pHash values for image similarity
 
   creator        User         @relation(fields: [creatorId], references: [id])
   activities     Activity[]
   comments       Comment[]
   userUpvotes    Upvote[]
-  parentIssue    Issue?       @relation("IssueDuplicates", fields: [parentIssueId], references: [id])
-  duplicates     Issue[]      @relation("IssueDuplicates")
+  parentReport    Report?       @relation("ReportDuplicates", fields: [parentReportId], references: [id])
+  duplicates     Report[]      @relation("ReportDuplicates")
 
   @@index([latitude, longitude])
   @@index([isDuplicate])
@@ -69,8 +61,8 @@ model Issue {
 
 model Activity {
   id         String   @id @default(uuid())
-  issueId    String
-  issue      Issue    @relation(fields: [issueId], references: [id])
+  reportId    String
+  report      Report    @relation(fields: [reportId], references: [id])
   type       String   // EX: "CREATED", "COMMENT_ADDED", "STATUS_UPDATED"
   message    String?
   createdAt  DateTime @default(now())
@@ -81,12 +73,12 @@ model Activity {
 model Comment {
   id        String   @id @default(cuid())
   text      String
-  issueId   String
+  reportId   String
   userId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  report     Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id])
 
   @@map("comment")
@@ -94,8 +86,8 @@ model Comment {
 
 model Upvote {
   id        String   @id @default(uuid())
-  issueId   String
-  issue     Issue    @relation(fields: [issueId], references: [id])
+  reportId   String
+  report     Report    @relation(fields: [reportId], references: [id])
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())

@@ -23,9 +23,9 @@ const DedupeMergeSchema = z.object({
 export const checkDuplicate: RequestHandler = async (req, res) => {
   try {
     const { reportId } = DedupeCheckSchema.parse(req.body);
-    
+
     // Get the report details to check for duplicates
-    const report = await prisma.issue.findUnique({
+    const report = await prisma.report.findUnique({
       where: { id: reportId },
     });
 
@@ -47,7 +47,11 @@ export const checkDuplicate: RequestHandler = async (req, res) => {
     return ResponseHandler.success(res, result, "Duplicate check completed");
   } catch (error: any) {
     if (error.name === "ZodError") {
-      return ResponseHandler.badRequest(res, "Invalid request data", error.errors);
+      return ResponseHandler.badRequest(
+        res,
+        "Invalid request data",
+        error.errors
+      );
     }
     console.error("Check duplicate error:", error);
     return ResponseHandler.serverError(res);
@@ -62,7 +66,7 @@ export const mergeIssues: RequestHandler = async (req, res) => {
   try {
     const { sourceId, targetId } = DedupeMergeSchema.parse(req.body);
 
-    const mergedIssue = await deduplicationService.mergeIssues(
+    const mergedIssue = await deduplicationService.mergeReports(
       sourceId,
       targetId
     );
@@ -74,7 +78,11 @@ export const mergeIssues: RequestHandler = async (req, res) => {
     );
   } catch (error: any) {
     if (error.name === "ZodError") {
-      return ResponseHandler.badRequest(res, "Invalid request data", error.errors);
+      return ResponseHandler.badRequest(
+        res,
+        "Invalid request data",
+        error.errors
+      );
     }
     if (error.message === "Issue not found for merging") {
       return ResponseHandler.notFound(res, error.message);

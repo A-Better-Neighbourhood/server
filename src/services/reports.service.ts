@@ -1,16 +1,17 @@
 /** @format */
 
-import { Issue } from "@prisma/client";
+import { Report } from "../generated/client/client.js";
 import { prisma } from "../lib/db";
-import { CreateReportType } from "../schemas/issues.schema";
+import { CreateReportType } from "../schemas/reports.schema";
 import { ImageService } from "./image.service";
 import { LocalStorageService } from "./storage";
+import { modelService, ModelPredictionResult } from "./model/model.service.js";
 import {
   deduplicationService,
   DeduplicationService,
 } from "./deduplication.service";
 
-export class IssuesService {
+export class ReportsService {
   private imageService: ImageService;
 
   constructor() {
@@ -47,29 +48,29 @@ export class IssuesService {
     };
   }
 
-  async createIssue(
+  async createReport(
     creatorId: string,
     data: CreateReportType
   ): Promise<{
-    issue: Issue;
+    report: Report;
     isDuplicate: boolean;
-    originalIssue?: Issue;
+    originalReport?: Report;
     merged?: boolean;
   }> {
     const { buffer, mimeType, extension } = this.parseBase64Image(data.image);
-    const originalName = `issue-${Date.now()}.${extension}`;
+    const originalName = `report-${Date.now()}.${extension}`;
 
     // Upload image and generate hash
     const { url: imageUrl } = await this.imageService.uploadImage(
       buffer,
       originalName,
       mimeType,
-      "issues"
+      "reports"
     );
 
     const imageHash = DeduplicationService.generateImageHash(buffer);
 
-    // Check for duplicates before creating the issue
+    // Check for duplicates before creating the report
     const duplicateCheck = await deduplicationService.checkForDuplicates(
       data.location[0], // latitude
       data.location[1], // longitude
@@ -78,10 +79,13 @@ export class IssuesService {
       data.description
     );
 
-    // If duplicate found, merge with existing issue
-    if (duplicateCheck.isDuplicate && duplicateCheck.originalIssue) {
-      // Create the new issue first (as duplicate)
-      const duplicateIssue = await prisma.issue.create({
+    // If duplicate found, merge with existing report
+    // Note: deduplicationService returns originalReport for backward compatibility
+    if (duplicateCheck.isDuplicate && duplicateCheck.originalreport) {
+      const originalReport = duplicateCheck.originalreport as any;
+
+      // Create the new report first (as duplicate)
+      const duplicateReport = await prisma.report.create({
         data: {
           title: data.title,
           description: data.description,
@@ -91,36 +95,36 @@ export class IssuesService {
           imageHashes: [imageHash],
           isDuplicate: true,
           status: "ARCHIVED",
-          parentIssueId: duplicateCheck.originalIssue.id,
+          parentReportId: originalReport.id,
           creatorId: creatorId,
         },
       });
 
-      // Merge with original issue
-      const mergedIssue = await deduplicationService.mergeIssues(
-        duplicateIssue.id,
-        duplicateCheck.originalIssue.id,
+      // Merge with original report using mergeReports (renamed to mergeReports conceptually)
+      const mergedReport = (await deduplicationService.mergeReports(
+        duplicateReport.id,
+        originalReport.id,
         creatorId
-      );
+      )) as any;
 
       // Log activities
       await this.logActivity(
-        duplicateIssue.id,
+        duplicateReport.id,
         "CREATED",
-        `Issue "${data.title}" was created and identified as duplicate`,
+        `Report "${data.title}" was created and identified as duplicate`,
         creatorId
       );
 
       return {
-        issue: mergedIssue,
+        report: mergedReport,
         isDuplicate: true,
-        originalIssue: duplicateCheck.originalIssue,
+        originalReport: originalReport,
         merged: true,
       };
     }
 
-    // Create new unique issue
-    const newIssue = await prisma.issue.create({
+    // Create new unique report
+    const newReport = await prisma.report.create({
       data: {
         title: data.title,
         description: data.description,
@@ -135,23 +139,33 @@ export class IssuesService {
       },
     });
 
-    // Log the issue creation activity
+    // Analyze the image with the model (async, don't wait for it)
+    modelService
+      .analyzeImage(buffer, originalName, mimeType, newReport.id)
+      .catch((error) => {
+        console.error(
+          `Failed to analyze image for report ${newReport.id}:`,
+          error
+        );
+      });
+
+    // Log the report creation activity
     await this.logActivity(
-      newIssue.id,
+      newReport.id,
       "CREATED",
-      `Issue "${data.title}" was created`,
+      `Report "${data.title}" was created`,
       creatorId
     );
 
     return {
-      issue: newIssue,
+      report: newReport,
       isDuplicate: false,
       merged: false,
     };
   }
 
-  async getIssues(): Promise<Issue[]> {
-    return prisma.issue.findMany({
+  async getReports(): Promise<Report[]> {
+    return prisma.report.findMany({
       include: {
         creator: {
           select: { id: true, fullName: true },
@@ -163,60 +177,60 @@ export class IssuesService {
     });
   }
 
-  async getIssueById(issueId: string): Promise<Issue | null> {
-    return prisma.issue.findUnique({
-      where: { id: issueId },
+  async getReportById(reportId: string): Promise<Report | null> {
+    return prisma.report.findUnique({
+      where: { id: reportId },
       include: { creator: true },
     });
   }
 
-  async updateIssue(
-    issueId: string,
+  async updateReport(
+    reportId: string,
     title: string,
     description: string
-  ): Promise<Issue> {
-    return prisma.issue.update({
-      where: { id: issueId },
+  ): Promise<Report> {
+    return prisma.report.update({
+      where: { id: reportId },
       data: { title, description },
     });
   }
 
-  async getUserIssues(userId: string): Promise<Issue[]> {
-    return prisma.issue.findMany({
+  async getUserReports(userId: string): Promise<Report[]> {
+    return prisma.report.findMany({
       where: { creatorId: userId },
     });
   }
 
-  async getUnresolvedIssues(): Promise<Issue[]> {
-    return prisma.issue.findMany({
+  async getUnresolvedReports(): Promise<Report[]> {
+    return prisma.report.findMany({
       where: { status: "PENDING" },
     });
   }
 
-  async getUserResolvedIssues(userId: string): Promise<Issue[]> {
-    return prisma.issue.findMany({
+  async getUserResolvedReports(userId: string): Promise<Report[]> {
+    return prisma.report.findMany({
       where: { creatorId: userId, status: "RESOLVED" },
     });
   }
 
-  async markIssueAsResolved(issueId: string): Promise<Issue> {
-    const resolvedIssue = await prisma.issue.update({
-      where: { id: issueId },
+  async markReportAsResolved(reportId: string): Promise<Report> {
+    const resolvedReport = await prisma.report.update({
+      where: { id: reportId },
       data: { status: "RESOLVED" },
     });
 
     // Log the resolution activity
     await this.logActivity(
-      issueId,
+      reportId,
       "STATUS_UPDATED",
-      "Issue has been marked as resolved"
+      "Report has been marked as resolved"
     );
 
-    return resolvedIssue;
+    return resolvedReport;
   }
 
-  async getUserUnresolvedIssues(userId: string) {
-    return prisma.issue.findMany({
+  async getUserUnresolvedReports(userId: string) {
+    return prisma.report.findMany({
       where: {
         creatorId: userId,
         status: {
@@ -226,12 +240,38 @@ export class IssuesService {
     });
   }
 
-  async getNearbyIssues(
+  /**
+   * Get model analysis result for a report (for debugging)
+   */
+  async getModelAnalysis(
+    reportId: string
+  ): Promise<ModelPredictionResult | null> {
+    return modelService.getResultByReportId(reportId);
+  }
+
+  /**
+   * Get annotated image path for a report (for debugging)
+   */
+  async getAnnotatedImagePath(reportId: string): Promise<string | null> {
+    return modelService.getAnnotatedImagePath(reportId);
+  }
+
+  /**
+   * Check if model API is healthy
+   */
+  async checkModelHealth(): Promise<boolean> {
+    return modelService.checkHealth();
+  }
+
+  /**
+   * Get nearby reports using PostGIS spatial query
+   */
+  async getNearbyReports(
     latitude: number,
     longitude: number,
     radiusKm: number = 5
   ): Promise<
-    (Issue & { distance: number; creator: { id: string; fullName: string } })[]
+    (Report & { distance: number; creator: { id: string; fullName: string } })[]
   > {
     try {
       // Validate input parameters
@@ -252,50 +292,53 @@ export class IssuesService {
       }
 
       // Use PostGIS ST_DWithin for efficient spatial query
-      const nearbyIssues = await prisma.$queryRaw<any[]>`
+      const nearbyReports = await prisma.$queryRaw<any[]>`
         SELECT 
-          i.*,
+          r.*,
           u.id as creator_id,
           u."fullName" as creator_name,
           ST_Distance(
             ST_GeogFromText('POINT(' || ${longitude} || ' ' || ${latitude} || ')'),
-            ST_GeogFromText('POINT(' || i.longitude || ' ' || i.latitude || ')')
+            ST_GeogFromText('POINT(' || r.longitude || ' ' || r.latitude || ')')
           ) / 1000 as distance
-        FROM "Issue" i
-        JOIN "User" u ON i."creatorId" = u.id
+        FROM "Report" r
+        JOIN "User" u ON r."creatorId" = u.id
         WHERE 
-          i.status != 'RESOLVED'
+          r.status != 'RESOLVED'
           AND ST_DWithin(
             ST_GeogFromText('POINT(' || ${longitude} || ' ' || ${latitude} || ')'),
-            ST_GeogFromText('POINT(' || i.longitude || ' ' || i.latitude || ')'),
+            ST_GeogFromText('POINT(' || r.longitude || ' ' || r.latitude || ')'),
             ${radiusKm * 1000}
           )
         ORDER BY distance ASC
       `;
 
-      return nearbyIssues.map((issue: any) => ({
-        ...issue,
-        distance: Math.round(issue.distance * 100) / 100,
+      return nearbyReports.map((report: any) => ({
+        ...report,
+        distance: Math.round(report.distance * 100) / 100,
         creator: {
-          id: issue.creator_id,
-          fullName: issue.creator_name,
+          id: report.creator_id,
+          fullName: report.creator_name,
         },
       }));
     } catch (error) {
-      console.error("Error fetching nearby issues:", error);
+      console.error("Error fetching nearby reports:", error);
       throw error;
     }
   }
 
+  /**
+   * Log activity for a report
+   */
   async logActivity(
-    issueId: string,
+    reportId: string,
     type: string,
     message: string,
     userId?: string
   ) {
     return prisma.activity.create({
       data: {
-        issueId,
+        reportId: reportId,
         type,
         message,
         createdById: userId || null,
@@ -304,23 +347,23 @@ export class IssuesService {
   }
 
   /**
-   * Get all activities for a specific issue
+   * Get all activities for a specific report
    */
-  async getIssueActivities(issueId: string) {
+  async getReportActivities(reportId: string) {
     try {
-      // First check if the issue exists
-      const issue = await prisma.issue.findUnique({
-        where: { id: issueId },
+      // First check if the report exists
+      const report = await prisma.report.findUnique({
+        where: { id: reportId },
         select: { id: true },
       });
 
-      if (!issue) {
-        throw new Error("Issue not found");
+      if (!report) {
+        throw new Error("Report not found");
       }
 
-      // Get all activities for the issue
+      // Get all activities for the report
       const activities = await prisma.activity.findMany({
-        where: { issueId },
+        where: { reportId: reportId },
         include: {
           createdBy: {
             select: {
@@ -336,24 +379,30 @@ export class IssuesService {
 
       return activities;
     } catch (error) {
-      console.error("Error fetching issue activities:", error);
+      console.error("Error fetching report activities:", error);
       throw error;
     }
   }
 
-  async addComment(issueId: string, userId: string, text: string) {
+  /**
+   * Add a comment to a report
+   */
+  async addComment(reportId: string, userId: string, text: string) {
     return prisma.comment.create({
       data: {
-        issueId,
+        reportId: reportId,
         userId,
         text,
       },
     });
   }
 
-  async getComments(issueId: string) {
+  /**
+   * Get all comments for a report
+   */
+  async getComments(reportId: string) {
     return prisma.comment.findMany({
-      where: { issueId },
+      where: { reportId: reportId },
       orderBy: { createdAt: "asc" },
       include: {
         user: {
@@ -363,21 +412,24 @@ export class IssuesService {
     });
   }
 
-  async upvoteIssue(issueId: string, userId: string) {
+  /**
+   * Upvote a report
+   */
+  async upvoteReport(reportId: string, userId: string) {
     // Check if already upvoted
     const already = await prisma.upvote.findFirst({
-      where: { issueId, userId },
+      where: { reportId: reportId, userId },
     });
 
     if (already) return null; // user already upvoted
 
     await prisma.upvote.create({
-      data: { issueId, userId },
+      data: { reportId: reportId, userId },
     });
 
     // Increase count column if you maintain one
-    return prisma.issue.update({
-      where: { id: issueId },
+    return prisma.report.update({
+      where: { id: reportId },
       data: {
         upvotes: { increment: 1 },
       },
@@ -385,4 +437,4 @@ export class IssuesService {
   }
 }
 
-export const issuesService = new IssuesService();
+export const reportService = new ReportsService();
