@@ -1,6 +1,6 @@
 /** @format */
 
-import { Report } from "../generated/client/client.js";
+import { Report } from "../generated/client/client";
 import { prisma } from "../lib/db";
 import { CreateReportType } from "../schemas/reports.schema";
 import { ImageService } from "./image.service";
@@ -68,15 +68,10 @@ export class ReportsService {
       "reports"
     );
 
-    const imageHash = DeduplicationService.generateImageHash(buffer);
-
     // Check for duplicates before creating the report
     const duplicateCheck = await deduplicationService.checkForDuplicates(
-      data.location[0], // latitude
-      data.location[1], // longitude
-      imageHash,
-      data.title,
-      data.description
+      data.location[0],
+      data.location[1]
     );
 
     // If duplicate found, merge with existing report
@@ -92,7 +87,6 @@ export class ReportsService {
           imageUrl: JSON.stringify([imageUrl]),
           latitude: data.location[0],
           longitude: data.location[1],
-          imageHashes: [imageHash],
           isDuplicate: true,
           status: "ARCHIVED",
           parentReportId: originalReport.id,
@@ -131,7 +125,6 @@ export class ReportsService {
         imageUrl: JSON.stringify([imageUrl]),
         latitude: data.location[0],
         longitude: data.location[1],
-        imageHashes: [imageHash],
         upvotes: 1, // Auto-upvote by creator
         creator: {
           connect: { id: creatorId },
@@ -301,8 +294,8 @@ export class ReportsService {
             ST_GeogFromText('POINT(' || ${longitude} || ' ' || ${latitude} || ')'),
             ST_GeogFromText('POINT(' || r.longitude || ' ' || r.latitude || ')')
           ) / 1000 as distance
-        FROM "Report" r
-        JOIN "User" u ON r."creatorId" = u.id
+        FROM "reports" r
+        JOIN "users" u ON r."creatorId" = u.id
         WHERE 
           r.status != 'RESOLVED'
           AND ST_DWithin(
