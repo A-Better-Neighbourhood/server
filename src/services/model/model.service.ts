@@ -1,7 +1,7 @@
 /** @format */
 
-import { ModelApiClient } from "./model.client.js";
-import { LocalStorageService } from "../storage/index.js";
+import { ModelApiClient } from "./model.client";
+import { LocalStorageService } from "../storage/index";
 import fs from "fs/promises";
 import path from "path";
 

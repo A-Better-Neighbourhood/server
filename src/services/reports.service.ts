@@ -5,7 +5,7 @@ import { prisma } from "../lib/db";
 import { CreateReportType } from "../schemas/reports.schema";
 import { ImageService } from "./image.service";
 import { LocalStorageService } from "./storage";
-import { modelService, ModelPredictionResult } from "./model/model.service.js";
+import { modelService, ModelPredictionResult } from "./model/model.service";
 import {
   deduplicationService,
   DeduplicationService,
