@@ -68,15 +68,15 @@ export class ReportsService {
     // Check for duplicates before creating the report
     const duplicateCheck = await deduplicationService.checkForDuplicates(
       data.location[0],
-      data.location[1]
+      data.location[1],
+      data.category
     );
 
-    // If duplicate found, merge with existing report
-    // Note: deduplicationService returns originalReport for backward compatibility
-    if (duplicateCheck.isDuplicate && duplicateCheck.originalreport) {
-      const originalReport = duplicateCheck.originalreport as any;
+    // If duplicate found, create as duplicate and merge with original
+    if (duplicateCheck.isDuplicate && duplicateCheck.originalReport) {
+      const originalReport = duplicateCheck.originalReport;
 
-      // Create the new report first (as duplicate)
+      // Create the report as a duplicate (archived)
       const duplicateReport = await prisma.report.create({
         data: {
           title: data.title,
@@ -84,25 +84,19 @@ export class ReportsService {
           imageUrl: [imageUrl],
           latitude: data.location[0],
           longitude: data.location[1],
+          category: data.category,
           isDuplicate: true,
           status: "ARCHIVED",
-          parentReportId: originalReport.id,
+          originalReportId: originalReport.id,
+          mergedAt: new Date(),
           creatorId: creatorId,
         },
       });
 
-      // Merge with original report using mergeReports (renamed to mergeReports conceptually)
-      const mergedReport = (await deduplicationService.mergeReports(
+      // Merge with original report
+      const mergedReport = await deduplicationService.mergeReports(
         duplicateReport.id,
         originalReport.id,
-        creatorId
-      )) as any;
-
-      // Log activities
-      await this.logActivity(
-        duplicateReport.id,
-        "CREATED",
-        `Report "${data.title}" was created and identified as duplicate`,
         creatorId
       );
 
@@ -122,7 +116,7 @@ export class ReportsService {
         imageUrl: [imageUrl],
         latitude: data.location[0],
         longitude: data.location[1],
-        upvotes: 1, // Auto-upvote by creator
+        category: data.category,
         creator: {
           connect: { id: creatorId },
         },
@@ -156,6 +150,9 @@ export class ReportsService {
 
   async getReports(): Promise<Report[]> {
     return prisma.report.findMany({
+      where: {
+        isDuplicate: false, // Exclude duplicate reports
+      },
       include: {
         creator: {
           select: { id: true, fullName: true },
@@ -168,10 +165,19 @@ export class ReportsService {
   }
 
   async getReportById(reportId: string): Promise<Report | null> {
-    return prisma.report.findUnique({
+    const report = await prisma.report.findUnique({
       where: { id: reportId },
-      include: { creator: true },
+      include: {
+        creator: true,
+        originalReport: {
+          include: {
+            creator: true,
+          },
+        },
+      },
     });
+
+    return report;
   }
 
   async updateReport(
@@ -187,19 +193,29 @@ export class ReportsService {
 
   async getUserReports(userId: string): Promise<Report[]> {
     return prisma.report.findMany({
-      where: { creatorId: userId },
+      where: {
+        creatorId: userId,
+        isDuplicate: false, // Exclude duplicates
+      },
     });
   }
 
   async getUnresolvedReports(): Promise<Report[]> {
     return prisma.report.findMany({
-      where: { status: "PENDING" },
+      where: {
+        status: "PENDING",
+        isDuplicate: false, // Exclude duplicates
+      },
     });
   }
 
   async getUserResolvedReports(userId: string): Promise<Report[]> {
     return prisma.report.findMany({
-      where: { creatorId: userId, status: "RESOLVED" },
+      where: {
+        creatorId: userId,
+        status: "RESOLVED",
+        isDuplicate: false, // Exclude duplicates
+      },
     });
   }
 
@@ -226,6 +242,7 @@ export class ReportsService {
         status: {
           in: ["PENDING", "IN_PROGRESS"],
         },
+        isDuplicate: false, // Exclude duplicates
       },
     });
   }
@@ -295,6 +312,7 @@ export class ReportsService {
         JOIN "users" u ON r."creatorId" = u.id
         WHERE 
           r.status != 'RESOLVED'
+          AND r."isDuplicate" = false
           AND ST_DWithin(
             ST_GeogFromText('POINT(' || ${longitude} || ' ' || ${latitude} || ')'),
             ST_GeogFromText('POINT(' || r.longitude || ' ' || r.latitude || ')'),
@@ -322,7 +340,14 @@ export class ReportsService {
    */
   async logActivity(
     reportId: string,
-    type: string,
+    type:
+      | "CREATED"
+      | "COMMENT_ADDED"
+      | "AUTHORITY_COMMENTED"
+      | "STATUS_UPDATED"
+      | "ADDED_DUPLICATE"
+      | "MARKED_RESOLVED"
+      | "MARKED_AS_DUPLICATE",
     message: string,
     userId?: string
   ) {
@@ -378,6 +403,22 @@ export class ReportsService {
    * Add a comment to a report
    */
   async addComment(reportId: string, userId: string, text: string) {
+    // Check if report is a duplicate
+    const report = await prisma.report.findUnique({
+      where: { id: reportId },
+      select: { isDuplicate: true, originalReportId: true },
+    });
+
+    if (!report) {
+      throw new Error("Report not found");
+    }
+
+    if (report.isDuplicate) {
+      throw new Error(
+        `Cannot comment on duplicate report. Please comment on the original report: ${report.originalReportId}`
+      );
+    }
+
     return prisma.comment.create({
       data: {
         reportId: reportId,
@@ -406,6 +447,22 @@ export class ReportsService {
    * Upvote a report
    */
   async upvoteReport(reportId: string, userId: string) {
+    // Check if report is a duplicate
+    const report = await prisma.report.findUnique({
+      where: { id: reportId },
+      select: { isDuplicate: true, originalReportId: true },
+    });
+
+    if (!report) {
+      throw new Error("Report not found");
+    }
+
+    if (report.isDuplicate) {
+      throw new Error(
+        `Cannot upvote duplicate report. Please upvote the original report: ${report.originalReportId}`
+      );
+    }
+
     // Check if already upvoted
     const already = await prisma.upvote.findFirst({
       where: { reportId: reportId, userId },
@@ -413,16 +470,9 @@ export class ReportsService {
 
     if (already) return null; // user already upvoted
 
-    await prisma.upvote.create({
+    // Create upvote record
+    return prisma.upvote.create({
       data: { reportId: reportId, userId },
-    });
-
-    // Increase count column if you maintain one
-    return prisma.report.update({
-      where: { id: reportId },
-      data: {
-        upvotes: { increment: 1 },
-      },
     });
   }
 }
