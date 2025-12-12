@@ -6,10 +6,7 @@ import { CreateReportType } from "../schemas/reports.schema";
 import { ImageService } from "./image.service";
 import { LocalStorageService } from "./storage";
 import { modelService, ModelPredictionResult } from "./model/model.service";
-import {
-  deduplicationService,
-  DeduplicationService,
-} from "./deduplication.service";
+import { deduplicationService } from "./deduplication.service";
 
 export class ReportsService {
   private imageService: ImageService;
