@@ -3,7 +3,9 @@
 import { configDotenv } from "dotenv";
 import z from "zod";
 
-configDotenv();
+configDotenv({
+  quiet: true,
+});
 
 export const env = z.object({
   NODE_ENV: z

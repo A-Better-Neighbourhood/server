@@ -123,14 +123,16 @@ export class DeduplicationService {
           data: [
             {
               reportId: originalReportId,
-              type: "ADDED_DUPLICATE",
-              message: `Report merged with duplicate report (ID: ${duplicateReportId})`,
+              type: "DUPLICATE_MERGED",
+              actorType: "SYSTEM",
+              content: `Duplicate report merged (ID: ${duplicateReportId})`,
               createdById: mergedBy,
             },
             {
               reportId: duplicateReportId,
               type: "MARKED_AS_DUPLICATE",
-              message: `Report marked as duplicate of ${originalReportId}`,
+              actorType: "SYSTEM",
+              content: `Report marked as duplicate of ${originalReportId}`,
               createdById: mergedBy,
             },
           ],

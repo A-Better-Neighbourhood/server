@@ -17,7 +17,6 @@ import {
   getNearbyReports,
   getReportActivities,
   addComment,
-  getComments,
   upvoteReport,
 } from "../controllers/reports.controller";
 
@@ -35,7 +34,6 @@ reportsRouter.patch("/:reportId", authMiddleware, updateReport);
 reportsRouter.patch("/:reportId/resolve", authMiddleware, markReportAsResolved);
 reportsRouter.get("/:id/activities", authMiddleware, getReportActivities);
 reportsRouter.post("/:id/comments", authMiddleware, addComment);
-reportsRouter.get("/:id/comments", authMiddleware, getComments);
 reportsRouter.post("/:id/upvote", authMiddleware, upvoteReport);
 
 // Debug routes (development only)

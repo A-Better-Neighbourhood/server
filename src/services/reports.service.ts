@@ -136,7 +136,8 @@ export class ReportsService {
     // Log the report creation activity
     await this.logActivity(
       newReport.id,
-      "CREATED",
+      "REPORT_CREATED",
+      "SYSTEM",
       `Report "${data.title}" was created`,
       creatorId
     );
@@ -219,7 +220,20 @@ export class ReportsService {
     });
   }
 
-  async markReportAsResolved(reportId: string): Promise<Report> {
+  async markReportAsResolved(
+    reportId: string,
+    userId: string
+  ): Promise<Report> {
+    // Get user to determine actor type
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, fullName: true },
+    });
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
     const resolvedReport = await prisma.report.update({
       where: { id: reportId },
       data: { status: "RESOLVED" },
@@ -228,8 +242,10 @@ export class ReportsService {
     // Log the resolution activity
     await this.logActivity(
       reportId,
-      "STATUS_UPDATED",
-      "Report has been marked as resolved"
+      "MARKED_RESOLVED",
+      user.role === "AUTHORITY" ? "AUTHORITY" : "USER",
+      `Report has been marked as resolved by ${user.fullName}`,
+      userId
     );
 
     return resolvedReport;
@@ -341,28 +357,36 @@ export class ReportsService {
   async logActivity(
     reportId: string,
     type:
-      | "CREATED"
-      | "COMMENT_ADDED"
+      | "REPORT_CREATED"
+      | "USER_COMMENTED"
       | "AUTHORITY_COMMENTED"
       | "STATUS_UPDATED"
-      | "ADDED_DUPLICATE"
+      | "DUPLICATE_MERGED"
       | "MARKED_RESOLVED"
-      | "MARKED_AS_DUPLICATE",
-    message: string,
-    userId?: string
+      | "MARKED_AS_DUPLICATE"
+      | "UPVOTE_MILESTONE",
+    actorType: "USER" | "AUTHORITY" | "SYSTEM",
+    content: string,
+    userId?: string,
+    images?: string[],
+    statusChange?: { oldStatus: string; newStatus: string }
   ) {
     return prisma.activity.create({
       data: {
         reportId: reportId,
         type,
-        message,
+        actorType,
+        content,
+        images: images || [],
         createdById: userId || null,
+        oldStatus: statusChange?.oldStatus,
+        newStatus: statusChange?.newStatus,
       },
     });
   }
 
   /**
-   * Get all activities for a specific report
+   * Get all activities for a specific report (GitHub issue-style timeline)
    */
   async getReportActivities(reportId: string) {
     try {
@@ -376,7 +400,7 @@ export class ReportsService {
         throw new Error("Report not found");
       }
 
-      // Get all activities for the report
+      // Get all activities for the report (includes comments)
       const activities = await prisma.activity.findMany({
         where: { reportId: reportId },
         include: {
@@ -384,11 +408,12 @@ export class ReportsService {
             select: {
               id: true,
               fullName: true,
+              role: true,
             },
           },
         },
         orderBy: {
-          createdAt: "desc", // Most recent first
+          createdAt: "asc", // Oldest first for timeline view
         },
       });
 
@@ -400,9 +425,14 @@ export class ReportsService {
   }
 
   /**
-   * Add a comment to a report
+   * Add a comment to a report (creates an activity)
    */
-  async addComment(reportId: string, userId: string, text: string) {
+  async addComment(
+    reportId: string,
+    userId: string,
+    text: string,
+    images?: string[]
+  ) {
     // Check if report is a duplicate
     const report = await prisma.report.findUnique({
       where: { id: reportId },
@@ -419,28 +449,29 @@ export class ReportsService {
       );
     }
 
-    return prisma.comment.create({
-      data: {
-        reportId: reportId,
-        userId,
-        text,
-      },
+    // Get user to determine comment type
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
     });
-  }
 
-  /**
-   * Get all comments for a report
-   */
-  async getComments(reportId: string) {
-    return prisma.comment.findMany({
-      where: { reportId: reportId },
-      orderBy: { createdAt: "asc" },
-      include: {
-        user: {
-          select: { id: true, fullName: true },
-        },
-      },
-    });
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Create activity based on user role
+    const activityType =
+      user.role === "AUTHORITY" ? "AUTHORITY_COMMENTED" : "USER_COMMENTED";
+    const actorType = user.role === "AUTHORITY" ? "AUTHORITY" : "USER";
+
+    return this.logActivity(
+      reportId,
+      activityType,
+      actorType,
+      text,
+      userId,
+      images
+    );
   }
 
   /**
@@ -470,10 +501,28 @@ export class ReportsService {
 
     if (already) return null; // user already upvoted
 
-    // Create upvote record
-    return prisma.upvote.create({
+    // Create upvote record and check for milestones
+    const upvote = await prisma.upvote.create({
       data: { reportId: reportId, userId },
     });
+
+    // Count total upvotes
+    const upvoteCount = await prisma.upvote.count({
+      where: { reportId },
+    });
+
+    // Check for milestone (10, 50, 100, 500, 1000)
+    const milestones = [10, 50, 100, 500, 1000];
+    if (milestones.includes(upvoteCount)) {
+      await this.logActivity(
+        reportId,
+        "UPVOTE_MILESTONE",
+        "SYSTEM",
+        `This report has reached ${upvoteCount} upvotes!`
+      );
+    }
+
+    return upvote;
   }
 }
 
