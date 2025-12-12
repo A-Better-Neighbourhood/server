@@ -4,7 +4,7 @@ import { Report } from "../generated/client/client";
 import { prisma } from "../lib/db";
 import { CreateReportType } from "../schemas/reports.schema";
 import { ImageService } from "./image.service";
-import { LocalStorageService } from "./storage";
+import { UploadThingStorageService } from "./storage";
 import { modelService, ModelPredictionResult } from "./model/model.service";
 import { deduplicationService } from "./deduplication.service";
 
@@ -12,8 +12,9 @@ export class ReportsService {
   private imageService: ImageService;
 
   constructor() {
-    const localStorage = new LocalStorageService("uploads", "/uploads");
-    this.imageService = new ImageService(localStorage);
+    // Use UploadThing for cloud storage of report images
+    const uploadThingStorage = new UploadThingStorageService();
+    this.imageService = new ImageService(uploadThingStorage);
   }
 
   /**
@@ -150,7 +151,7 @@ export class ReportsService {
   }
 
   async getReports(): Promise<Report[]> {
-    return prisma.report.findMany({
+    const reports = await prisma.report.findMany({
       where: {
         isDuplicate: false, // Exclude duplicate reports
       },
@@ -158,14 +159,24 @@ export class ReportsService {
         creator: {
           select: { id: true, fullName: true },
         },
+        _count: {
+          select: { userUpvotes: true },
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
     });
+
+    return reports.map((report) => ({
+      ...report,
+      upvotes: report._count.userUpvotes,
+    })) as any;
   }
 
-  async getReportById(reportId: string): Promise<Report | null> {
+  async getReportById(
+    reportId: string
+  ): Promise<(Report & { upvotes: number }) | null> {
     const report = await prisma.report.findUnique({
       where: { id: reportId },
       include: {
@@ -175,10 +186,18 @@ export class ReportsService {
             creator: true,
           },
         },
+        _count: {
+          select: { userUpvotes: true },
+        },
       },
     });
 
-    return report;
+    if (!report) return null;
+
+    return {
+      ...report,
+      upvotes: report._count.userUpvotes,
+    };
   }
 
   async updateReport(

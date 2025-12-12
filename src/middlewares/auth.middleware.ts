@@ -28,8 +28,6 @@ export const authMiddleware: RequestHandler = async (req, res, next) => {
 
     const payload = verifyToken(token);
 
-    console.log(payload);
-
     if (!payload) {
       return res.status(401).json({
         success: false,
