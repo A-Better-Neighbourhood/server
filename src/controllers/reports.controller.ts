@@ -50,15 +50,15 @@ export const createReport: RequestHandler = async (req, res) => {
   }
 
   try {
-    const { title, description, image, location } = CreateReportSchema.parse(
-      req.body
-    );
+    const { title, description, image, location, category } =
+      CreateReportSchema.parse(req.body);
 
     const result = await reportService.createReport(userId, {
       title,
       description,
       image,
       location,
+      category,
     });
 
     if (result.isDuplicate) {

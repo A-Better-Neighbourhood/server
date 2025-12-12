@@ -3,7 +3,6 @@
 import { Router } from "express";
 import { reportsRouter } from "./reports.route";
 import { authRouter } from "./auth.route";
-import { internalRouter } from "./internal.route";
 import express from "express";
 import path from "path";
 
@@ -11,7 +10,6 @@ const router = Router();
 
 router.use("/reports", reportsRouter);
 router.use("/auth", authRouter);
-router.use("/internal", internalRouter);
 
 // Debug route to serve model analysis results
 if (process.env.NODE_ENV !== "production") {
