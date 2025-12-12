@@ -45,8 +45,6 @@ export const authMiddleware: RequestHandler = async (req, res, next) => {
       });
     }
 
-    console.log(user);
-
     req.user = {
       id: user.id,
       contactNo: user.contactNo,
