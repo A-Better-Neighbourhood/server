@@ -1,51 +1,55 @@
 /** @format */
 
 import { prisma } from "../lib/db";
-import { Report } from "../generated/client/client";
+import { Report, ReportCategory } from "../generated/client/client";
 
 export class DeduplicationService {
-  private readonly DEDUPLICATION_RADIUS_KM = 0.05; // 50 meters
-  private readonly SIMILARITY_THRESHOLD = 0.85; // 85% similarity threshold
+  private readonly DEDUPLICATION_RADIUS_KM = 0.005; // 5 meters
 
   /**
    * Check if a new report is similar to existing reports
+   * @param latitude Report latitude
+   * @param longitude Report longitude
+   * @param category Report category
+   * @returns Object indicating if duplicate found and the original report
    */
   async checkForDuplicates(
     latitude: number,
     longitude: number,
-    imageHash: string,
-    title: string,
-    description?: string
+    category: ReportCategory
   ): Promise<{
     isDuplicate: boolean;
-    originalreport?: Report;
+    originalReport?: Report;
     similarity?: number;
   }> {
     try {
       // Step 1: Find candidate nearby reports using geospatial query
-      const nearbyreports = await this.findNearbyreports(latitude, longitude);
+      const nearbyReports = await this.findNearbyReports(latitude, longitude);
 
-      if (nearbyreports.length === 0) {
+      if (nearbyReports.length === 0) {
         return { isDuplicate: false };
       }
 
-      // Step 2: Check image similarity using pHash
-      const similarreport = await this.findSimilarreport(
-        nearbyreports,
-        imageHash,
-        title,
-        description
+      // Step 2: Filter by same category
+      const sameCategoryReports = nearbyReports.filter(
+        (report) => report.category === category
       );
 
-      if (similarreport) {
-        return {
-          isDuplicate: true,
-          originalreport: similarreport.report,
-          similarity: similarreport.similarity,
-        };
+      if (sameCategoryReports.length === 0) {
+        return { isDuplicate: false };
       }
 
-      return { isDuplicate: false };
+      // Step 3: Find the earliest created report (original)
+      const originalReport = sameCategoryReports.reduce((earliest, current) => {
+        return new Date(current.createdAt) < new Date(earliest.createdAt)
+          ? current
+          : earliest;
+      });
+
+      return {
+        isDuplicate: true,
+        originalReport,
+      };
     } catch (error) {
       console.error("Error checking for duplicates:", error);
       throw error;
@@ -54,6 +58,10 @@ export class DeduplicationService {
 
   /**
    * Merge a duplicate report into an original report
+   * @param duplicateReportId ID of the duplicate report
+   * @param originalReportId ID of the original report
+   * @param mergedBy Optional user ID who performed the merge
+   * @returns Updated original report
    */
   async mergeReports(
     duplicateReportId: string,
@@ -61,6 +69,7 @@ export class DeduplicationService {
     mergedBy?: string
   ): Promise<Report> {
     try {
+      // Fetch both reports
       const duplicateReport = await prisma.report.findUnique({
         where: { id: duplicateReportId },
       });
@@ -70,7 +79,7 @@ export class DeduplicationService {
       });
 
       if (!duplicateReport || !originalReport) {
-        throw new Error("report not found for merging");
+        throw new Error("Report not found");
       }
 
       // Begin transaction to merge reports
@@ -81,47 +90,49 @@ export class DeduplicationService {
           data: {
             status: "ARCHIVED",
             isDuplicate: true,
-            parentReportId: originalReportId,
+            originalReportId: originalReportId,
+            mergedAt: new Date(),
           },
         });
 
-        // 2. Update original report with merged data
-        const originalImages = Array.isArray(originalReport.imageUrl)
-          ? originalReport.imageUrl
-          : [originalReport.imageUrl];
-
-        const duplicateImages = Array.isArray(duplicateReport.imageUrl)
-          ? duplicateReport.imageUrl
-          : [duplicateReport.imageUrl];
-        const mergedImages = [...originalImages, ...duplicateImages];
-        const mergedUpvotes = originalReport.upvotes + duplicateReport.upvotes;
-        const mergedReportIds = [
-          ...(originalReport.mergedReportIds || []),
-          duplicateReportId,
+        // 2. Merge images from duplicate to original
+        const mergedImages = [
+          ...originalReport.imageUrl,
+          ...duplicateReport.imageUrl,
         ];
 
+        // 3. Update original report with merged data and increment duplicate count
         const updatedOriginal = await tx.report.update({
           where: { id: originalReportId },
           data: {
-            imageUrl: JSON.stringify(mergedImages),
-            upvotes: mergedUpvotes,
-            mergedReportIds: mergedReportIds,
+            imageUrl: mergedImages,
+            duplicateCount: {
+              increment: 1,
+            },
           },
         });
 
-        // 3. Log activities for both reports
+        // 4. Transfer all upvotes from duplicate to original
+        await tx.upvote.updateMany({
+          where: { reportId: duplicateReportId },
+          data: { reportId: originalReportId },
+        });
+
+        // 5. Create activities for both reports
         await tx.activity.createMany({
           data: [
             {
               reportId: originalReportId,
-              type: "ISSUE_MERGED",
-              message: `report merged with duplicate report (ID: ${duplicateReportId})`,
+              type: "DUPLICATE_MERGED",
+              actorType: "SYSTEM",
+              content: `Duplicate report merged (ID: ${duplicateReportId})`,
               createdById: mergedBy,
             },
             {
               reportId: duplicateReportId,
-              type: "DUPLICATE_ARCHIVED",
-              message: `report marked as duplicate of ${originalReportId}`,
+              type: "MARKED_AS_DUPLICATE",
+              actorType: "SYSTEM",
+              content: `Report marked as duplicate of ${originalReportId}`,
               createdById: mergedBy,
             },
           ],
@@ -139,8 +150,11 @@ export class DeduplicationService {
 
   /**
    * Find reports within deduplication radius using PostGIS
+   * @param latitude Search center latitude
+   * @param longitude Search center longitude
+   * @returns Array of nearby reports that are not resolved, archived, or already duplicates
    */
-  private async findNearbyreports(
+  private async findNearbyReports(
     latitude: number,
     longitude: number
   ): Promise<Report[]> {
@@ -148,127 +162,20 @@ export class DeduplicationService {
     const radiusInMeters = this.DEDUPLICATION_RADIUS_KM * 1000;
 
     // Use PostGIS ST_DWithin for efficient geospatial filtering
-    const nearbyreports = await prisma.$queryRaw<Report[]>`
-      SELECT * FROM "report" 
+    // ST_DWithin with geography type automatically uses meters for distance
+    const nearbyReports = await prisma.$queryRaw<Report[]>`
+      SELECT * FROM "reports" 
       WHERE status NOT IN ('RESOLVED', 'ARCHIVED')
         AND "isDuplicate" = false
         AND ST_DWithin(
-          ST_SetSRID(ST_MakePoint(longitude, latitude), 4326),
-          ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326),
+          ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
+          ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)::geography,
           ${radiusInMeters}
         )
+      ORDER BY "createdAt" ASC
     `;
 
-    return nearbyreports;
-  }
-
-  /**
-   * Find similar report based on image hash and text similarity
-   */
-  private async findSimilarreport(
-    candidateReports: Report[],
-    newImageHash: string,
-    newTitle: string,
-    newDescription?: string
-  ): Promise<{ report: Report; similarity: number } | null> {
-    let bestMatch: { report: Report; similarity: number } | null = null;
-
-    for (const report of candidateReports) {
-      // Check image similarity using pHash
-      const imageSimilarity = this.calculateImageSimilarity(
-        newImageHash,
-        report.imageHashes
-      );
-
-      // Check text similarity
-      const textSimilarity = this.calculateTextSimilarity(
-        newTitle,
-        newDescription || "",
-        report.title,
-        report.description || ""
-      );
-
-      // Combined similarity score (weighted: 70% image, 30% text)
-      const combinedSimilarity = imageSimilarity * 0.7 + textSimilarity * 0.3;
-
-      if (
-        combinedSimilarity >= this.SIMILARITY_THRESHOLD &&
-        (!bestMatch || combinedSimilarity > bestMatch.similarity)
-      ) {
-        bestMatch = { report, similarity: combinedSimilarity };
-      }
-    }
-
-    return bestMatch;
-  }
-
-  /**
-   * Calculate image similarity using pHash comparison
-   */
-  private calculateImageSimilarity(
-    newHash: string,
-    existingHashes: string[]
-  ): number {
-    if (!existingHashes.length) return 0;
-
-    let maxSimilarity = 0;
-    for (const hash of existingHashes) {
-      const similarity = this.compareHashes(newHash, hash);
-      maxSimilarity = Math.max(maxSimilarity, similarity);
-    }
-
-    return maxSimilarity;
-  }
-
-  /**
-   * Compare two pHash values (simplified - in production use proper pHash library)
-   */
-  private compareHashes(hash1: string, hash2: string): number {
-    if (hash1.length !== hash2.length) return 0;
-
-    let matches = 0;
-    for (let i = 0; i < hash1.length; i++) {
-      if (hash1[i] === hash2[i]) matches++;
-    }
-
-    return matches / hash1.length;
-  }
-
-  /**
-   * Calculate text similarity using basic string comparison
-   */
-  private calculateTextSimilarity(
-    title1: string,
-    desc1: string,
-    title2: string,
-    desc2: string
-  ): number {
-    const text1 = (title1 + " " + desc1).toLowerCase();
-    const text2 = (title2 + " " + desc2).toLowerCase();
-
-    return this.jaccardSimilarity(text1, text2);
-  }
-
-  /**
-   * Jaccard similarity for text comparison
-   */
-  private jaccardSimilarity(str1: string, str2: string): number {
-    const set1 = new Set(str1.split(" "));
-    const set2 = new Set(str2.split(" "));
-
-    const intersection = new Set([...set1].filter((x) => set2.has(x)));
-    const union = new Set([...set1, ...set2]);
-
-    return intersection.size / union.size;
-  }
-
-  /**
-   * Generate a simple hash for images (placeholder - use proper pHash in production)
-   */
-  static generateImageHash(imageBuffer: Buffer): string {
-    // This is a simplified hash - in production, use proper pHash libraries
-    const crypto = require("crypto");
-    return crypto.createHash("md5").update(imageBuffer).digest("hex");
+    return nearbyReports;
   }
 }
 

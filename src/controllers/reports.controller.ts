@@ -50,15 +50,15 @@ export const createReport: RequestHandler = async (req, res) => {
   }
 
   try {
-    const { title, description, image, location } = CreateReportSchema.parse(
-      req.body
-    );
+    const { title, description, image, location, category } =
+      CreateReportSchema.parse(req.body);
 
     const result = await reportService.createReport(userId, {
       title,
       description,
       image,
       location,
+      category,
     });
 
     if (result.isDuplicate) {
@@ -158,7 +158,7 @@ export const markReportAsResolved: RequestHandler = async (req, res) => {
   }
 
   try {
-    const report = await reportService.markReportAsResolved(reportId);
+    const report = await reportService.markReportAsResolved(reportId, userId);
     if (!report) {
       return ResponseHandler.notFound(res, "Report not found");
     }
@@ -307,7 +307,7 @@ export const getReportActivities: RequestHandler = async (req, res) => {
 export const addComment: RequestHandler = async (req, res) => {
   const userId = req.user?.id;
   const { id: reportId } = req.params;
-  const { text } = req.body;
+  const { text, images } = req.body;
 
   if (!userId) {
     return ResponseHandler.unauthorized(res);
@@ -318,32 +318,24 @@ export const addComment: RequestHandler = async (req, res) => {
   }
 
   try {
-    const comment = await reportService.addComment(reportId, userId, text);
+    const activity = await reportService.addComment(
+      reportId,
+      userId,
+      text,
+      images
+    );
 
     return ResponseHandler.success(
       res,
-      comment,
+      activity,
       "Comment added successfully",
       201
     );
-  } catch (error) {
+  } catch (error: any) {
+    if (error.message?.includes("Cannot comment on duplicate")) {
+      return ResponseHandler.badRequest(res, error.message);
+    }
     console.log(error);
-    return ResponseHandler.serverError(res);
-  }
-};
-
-export const getComments: RequestHandler = async (req, res) => {
-  const { id: reportId } = req.params;
-
-  try {
-    const comments = await reportService.getComments(reportId);
-
-    return ResponseHandler.success(
-      res,
-      comments,
-      "Comments retrieved successfully"
-    );
-  } catch (error) {
     return ResponseHandler.serverError(res);
   }
 };

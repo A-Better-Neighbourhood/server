@@ -7,6 +7,14 @@ export const CreateReportSchema = z.object({
   description: z.string().min(1, "Description is required"),
   image: z.string().min(1, "Photo is required - please capture a photo"),
   location: z.tuple([z.number(), z.number()]), // Allow any coordinates including [0,0]
+  category: z.enum([
+    "ROAD_ISSUE",
+    "GARBAGE",
+    "STREET_LIGHT",
+    "WATER_LEAK",
+    "NOISE_COMPLAINT",
+    "OTHER",
+  ]),
 });
 
 export const NearbyIssuesSchema = z.object({

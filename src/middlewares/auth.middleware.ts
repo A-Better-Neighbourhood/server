@@ -28,8 +28,6 @@ export const authMiddleware: RequestHandler = async (req, res, next) => {
 
     const payload = verifyToken(token);
 
-    console.log(payload);
-
     if (!payload) {
       return res.status(401).json({
         success: false,
@@ -46,8 +44,6 @@ export const authMiddleware: RequestHandler = async (req, res, next) => {
         message: "User not found",
       });
     }
-
-    console.log(user);
 
     req.user = {
       id: user.id,
