@@ -30,24 +30,46 @@ model User {
   @@map("users")
 }
 
+enum ReportCategory {
+  ROAD_ISSUE
+  GARBAGE
+  STREET_LIGHT
+  WATER_LEAK
+  NOISE_COMPLAINT
+  OTHER
+}
+
 model Report {
   id          String       @id @default(cuid())
   title       String
   description String?
-  imageUrl    String
+  imageUrl    String[]
   latitude    Float
   longitude   Float
   status      ReportStatus @default(PENDING)
   createdAt   DateTime     @default(now())
-  creatorId      String @map("userId")
-  upvotes    Int          @default(0)
+  creatorId   String @map("userId")
+
+  category   ReportCategory
+
+  // De-duplication fields
+  isDuplicate      Boolean   @default(false)
+  originalReportId String?   // Points to the original report if this is a duplicate
+  duplicateCount   Int       @default(0) // Count of duplicates merged into this report
+  mergedAt         DateTime? // When this report was marked as duplicate
 
   creator        User         @relation(fields: [creatorId], references: [id])
   activities     Activity[]
   comments       Comment[]
   userUpvotes    Upvote[]
   
+  // Self-referential relationship for duplicates
+  originalReport Report?  @relation("ReportDuplicates", fields: [originalReportId], references: [id], onDelete: SetNull)
+  duplicates     Report[] @relation("ReportDuplicates")
+  
   @@index([latitude, longitude])
+  @@index([originalReportId])
+  @@index([isDuplicate, status])
 
   @@map("reports")
 }
@@ -57,7 +79,7 @@ enum ActivityType {
   COMMENT_ADDED
   AUTHORITY_COMMENTED
   STATUS_UPDATED
-  DUPLICATED_ISSUE_REPORTED
+  ADDED_DUPLICATE
   MARKED_RESOLVED
   MARKED_AS_DUPLICATE
 }
