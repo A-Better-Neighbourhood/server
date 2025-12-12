@@ -4,7 +4,7 @@ import { Report } from "../generated/client/client";
 import { prisma } from "../lib/db";
 import { CreateReportType } from "../schemas/reports.schema";
 import { ImageService } from "./image.service";
-import { UploadThingStorageService } from "./storage";
+import { SupabaseStorageService } from "./storage/supabase.storage.service";
 import { modelService, ModelPredictionResult } from "./model/model.service";
 import { deduplicationService } from "./deduplication.service";
 
@@ -12,9 +12,9 @@ export class ReportsService {
   private imageService: ImageService;
 
   constructor() {
-    // Use UploadThing for cloud storage of report images
-    const uploadThingStorage = new UploadThingStorageService();
-    this.imageService = new ImageService(uploadThingStorage);
+    // Use Supabase for cloud storage of report images
+    const supabaseStorage = new SupabaseStorageService();
+    this.imageService = new ImageService(supabaseStorage);
   }
 
   /**
@@ -468,6 +468,29 @@ export class ReportsService {
       );
     }
 
+    // Process and upload images to UploadThing if provided
+    let uploadedImageUrls: string[] = [];
+
+    if (images && images.length > 0) {
+      uploadedImageUrls = await Promise.all(
+        images.map(async (base64Image, index) => {
+          const { buffer, mimeType, extension } =
+            this.parseBase64Image(base64Image);
+
+          const originalName = `comment-${Date.now()}-${index}.${extension}`;
+
+          const { url } = await this.imageService.uploadImage(
+            buffer,
+            originalName,
+            mimeType,
+            "comments"
+          );
+
+          return url;
+        })
+      );
+    }
+
     // Get user to determine comment type
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -489,7 +512,7 @@ export class ReportsService {
       actorType,
       text,
       userId,
-      images
+      uploadedImageUrls
     );
   }
 

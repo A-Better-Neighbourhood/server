@@ -26,7 +26,9 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.948.0",
     "@prisma/adapter-pg": "^7.0.1",
+    "@supabase/supabase-js": "^2.87.1",
     "@types/cookie-parser": "^1.4.9",
     "@types/morgan": "^1.9.10",
     "axios": "^1.13.2",
