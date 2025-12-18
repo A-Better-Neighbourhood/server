@@ -19,6 +19,7 @@ const envVars = env.parse(process.env);
 // CORS origins based on environment
 const allowedOrigins = [
   envVars.FRONTEND_URL,
+  envVars.ADMIN_PANEL_URL,
   "http://localhost:3000",
   "http://localhost:3001",
 ];
@@ -26,6 +27,7 @@ const allowedOrigins = [
 // Add production frontend URL if different from env var
 if (envVars.NODE_ENV === "production") {
   allowedOrigins.push("https://abn-phi.vercel.app");
+  allowedOrigins.push("https://admin-panel-eight-lime.vercel.app");
 }
 
 app.use(
