@@ -93,6 +93,18 @@ export const createReport: RequestHandler = async (req, res) => {
     if (error instanceof ZodError) {
       return ResponseHandler.badRequest(res, "Validation error", error.issues);
     }
+
+    if (error instanceof Error && error.message.includes("Invalid image")) {
+      return ResponseHandler.badRequest(res, error.message);
+    }
+
+    if (error instanceof Error && error.message.includes("detections")) {
+      return ResponseHandler.badRequest(
+        res,
+        "Image doesn't contain a valid issue."
+      );
+    }
+
     console.log(error);
     return ResponseHandler.serverError(res);
   }
