@@ -1,7 +1,7 @@
 /** @format */
 
 import { prisma } from "../lib/db";
-import { Report, ReportCategory } from "../generated/client/client";
+import { Report } from "../generated/client/client";
 
 export class DeduplicationService {
   private readonly DEDUPLICATION_RADIUS_KM = 0.005; // 5 meters
@@ -16,7 +16,7 @@ export class DeduplicationService {
   async checkForDuplicates(
     latitude: number,
     longitude: number,
-    category: ReportCategory
+    category: string
   ): Promise<{
     isDuplicate: boolean;
     originalReport?: Report;

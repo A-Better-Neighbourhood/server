@@ -41,16 +41,6 @@ model User {
   @@map("users")
 }
 
-enum ReportCategory {
-  ROAD_ISSUE
-  GARBAGE
-  STREET_LIGHT
-  POTHOLE
-  WATER_LEAK
-  NOISE_COMPLAINT
-  OTHER
-}
-
 model Report {
   id          String       @id @default(cuid())
   title       String
@@ -62,7 +52,7 @@ model Report {
   createdAt   DateTime     @default(now())
   creatorId   String @map("userId")
 
-  category   ReportCategory
+  category   String
 
   // De-duplication fields
   isDuplicate      Boolean   @default(false)

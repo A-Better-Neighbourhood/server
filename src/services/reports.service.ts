@@ -114,11 +114,40 @@ export class ReportsService {
       "reports"
     );
 
+    const modelPrediction = await modelService.analyzeImage(
+      buffer,
+      originalName,
+      mimeType,
+      "temp-report"
+    );
+
+    if (modelPrediction.prediction && "error" in modelPrediction.prediction) {
+      throw new Error(
+        `Model analysis failed: ${modelPrediction.prediction.error}`
+      );
+    }
+
+    // check if there are valid  detections
+
+    const hasDetections =
+      modelPrediction.prediction &&
+      "detections" in modelPrediction.prediction &&
+      modelPrediction.prediction.detections.length > 0;
+
+    if (!hasDetections) {
+      throw new Error(
+        "No valid detections found in the image. Please upload a clear image of an issue."
+      );
+    }
+
+    const predictedCategory =
+      modelPrediction.prediction.detections[0].class.toUpperCase();
+
     // Check for duplicates before creating the report
     const duplicateCheck = await deduplicationService.checkForDuplicates(
       data.location[0],
       data.location[1],
-      data.category
+      predictedCategory
     );
 
     // If duplicate found, create as duplicate and merge with original
@@ -133,7 +162,7 @@ export class ReportsService {
           imageUrl: [imageUrl],
           latitude: data.location[0],
           longitude: data.location[1],
-          category: data.category,
+          category: predictedCategory,
           isDuplicate: true,
           status: "ARCHIVED",
           originalReportId: originalReport.id,
@@ -165,7 +194,7 @@ export class ReportsService {
         imageUrl: [imageUrl],
         latitude: data.location[0],
         longitude: data.location[1],
-        category: data.category,
+        category: predictedCategory,
         creator: {
           connect: { id: creatorId },
         },
