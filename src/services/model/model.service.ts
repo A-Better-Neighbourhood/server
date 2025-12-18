@@ -1,14 +1,13 @@
 /** @format */
 
-import { ModelApiClient } from "./model.client";
+import { ModelApiClient, PredictionResponse } from "./model.client";
 import { LocalStorageService } from "../storage/index";
 import fs from "fs/promises";
 import path from "path";
 
 export interface ModelPredictionResult {
   reportId: string;
-  prediction: any;
-  confidence?: number;
+  prediction: PredictionResponse | { error: string };
   isValidPothole: boolean;
   processedAt: Date;
   originalFilename: string;
@@ -64,7 +63,6 @@ export class ModelService {
       const result: ModelPredictionResult = {
         reportId,
         prediction,
-        confidence: prediction.confidence,
         isValidPothole,
         processedAt: new Date(),
         originalFilename: filename,
@@ -83,7 +81,7 @@ export class ModelService {
         prediction: {
           error: error instanceof Error ? error.message : "Unknown error",
         },
-        confidence: 0,
+
         isValidPothole: false, // Default to false on error
         processedAt: new Date(),
         originalFilename: filename,
@@ -98,7 +96,7 @@ export class ModelService {
    * Evaluate prediction to determine if it's a valid pothole
    * Based on actual model response structure
    */
-  private evaluatePrediction(prediction: any): boolean {
+  private evaluatePrediction(prediction: PredictionResponse): boolean {
     // Check if the prediction was successful
     if (!prediction.success) {
       return false;
@@ -112,7 +110,7 @@ export class ModelService {
     // Check if we have detections array with potholes
     if (prediction.detections && Array.isArray(prediction.detections)) {
       const potholeDetections = prediction.detections.filter(
-        (detection: any) =>
+        (detection) =>
           detection.class === "pothole" && detection.confidence > 0.5
       );
       return potholeDetections.length > 0;
@@ -136,7 +134,10 @@ export class ModelService {
       console.log(`Model prediction result saved: ${filename}`);
 
       // Save annotated image if present
-      if (result.prediction?.annotated_image) {
+      if (
+        "annotated_image" in result.prediction &&
+        result.prediction.annotated_image
+      ) {
         await this.saveAnnotatedImage(
           reportId,
           result.prediction.annotated_image,

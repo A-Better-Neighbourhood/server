@@ -8,6 +8,54 @@ import { SupabaseStorageService } from "./storage/supabase.storage.service";
 import { modelService, ModelPredictionResult } from "./model/model.service";
 import { deduplicationService } from "./deduplication.service";
 
+// Type definitions for query results
+interface ReportWithUpvotes extends Report {
+  upvotes: number;
+}
+
+interface NearbyReportRow {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  latitude: number;
+  longitude: number;
+  imageUrl: string;
+  status: string;
+  isDuplicate: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  creatorId: string;
+  originalReportId: string | null;
+  activityId: string | null;
+  duplicateCount: number;
+  mergedAt: Date | null;
+  creator_id: string;
+  creator_name: string;
+  distance: number;
+}
+
+interface NearbyReport {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  latitude: number;
+  longitude: number;
+  imageUrl: string;
+  status: string;
+  isDuplicate: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  creatorId: string;
+  originalReportId: string | null;
+  activityId: string | null;
+  duplicateCount: number;
+  mergedAt: Date | null;
+  distance: number;
+  creator: { id: string; fullName: string };
+}
+
 export class ReportsService {
   private imageService: ImageService;
 
@@ -168,10 +216,12 @@ export class ReportsService {
       },
     });
 
-    return reports.map((report) => ({
-      ...report,
-      upvotes: report._count.userUpvotes,
-    })) as any;
+    return reports.map(
+      (report): ReportWithUpvotes => ({
+        ...report,
+        upvotes: report._count.userUpvotes,
+      })
+    );
   }
 
   async getReportById(
@@ -312,9 +362,7 @@ export class ReportsService {
     latitude: number,
     longitude: number,
     radiusKm: number = 5
-  ): Promise<
-    (Report & { distance: number; creator: { id: string; fullName: string } })[]
-  > {
+  ): Promise<NearbyReport[]> {
     try {
       // Validate input parameters
       if (!latitude || !longitude) {
@@ -334,7 +382,7 @@ export class ReportsService {
       }
 
       // Use PostGIS ST_DWithin for efficient spatial query
-      const nearbyReports = await prisma.$queryRaw<any[]>`
+      const nearbyReports = await prisma.$queryRaw<NearbyReportRow[]>`
         SELECT 
           r.*,
           u.id as creator_id,
@@ -356,14 +404,17 @@ export class ReportsService {
         ORDER BY distance ASC
       `;
 
-      return nearbyReports.map((report: any) => ({
-        ...report,
-        distance: Math.round(report.distance * 100) / 100,
-        creator: {
-          id: report.creator_id,
-          fullName: report.creator_name,
-        },
-      }));
+      return nearbyReports.map((report): NearbyReport => {
+        const { creator_id, creator_name, ...rest } = report;
+        return {
+          ...rest,
+          distance: Math.round(report.distance * 100) / 100,
+          creator: {
+            id: creator_id,
+            fullName: creator_name,
+          },
+        };
+      });
     } catch (error) {
       console.error("Error fetching nearby reports:", error);
       throw error;

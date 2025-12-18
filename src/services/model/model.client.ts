@@ -3,11 +3,24 @@
 import axios, { AxiosResponse } from "axios";
 import FormData from "form-data";
 
-interface PredictionResponse {
-  predictions?: any;
-  confidence?: number;
-  detected_objects?: any[];
-  // Add more fields based on actual API response
+export interface BBox {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface Detection {
+  confidence: number;
+  class: string;
+  bbox: BBox;
+}
+
+export interface PredictionResponse {
+  success: boolean;
+  count: number;
+  detections: Detection[];
+  annotated_image?: string;
 }
 
 interface ValidationError {
@@ -30,7 +43,7 @@ export class ModelApiClient {
   /**
    * Health check endpoint
    */
-  async health(): Promise<any> {
+  async health(): Promise<{ status: string; [key: string]: unknown }> {
     try {
       const response = await axios.get(`${this.baseUrl}/health`);
       return response.data;
