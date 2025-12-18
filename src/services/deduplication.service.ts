@@ -23,24 +23,19 @@ export class DeduplicationService {
     similarity?: number;
   }> {
     try {
-      // Step 1: Find candidate nearby reports using geospatial query
-      const nearbyReports = await this.findNearbyReports(latitude, longitude);
+      // Find candidate nearby reports using geospatial query filtered by category
+      const nearbyReports = await this.findNearbyReports(
+        latitude,
+        longitude,
+        category
+      );
 
       if (nearbyReports.length === 0) {
         return { isDuplicate: false };
       }
 
-      // Step 2: Filter by same category
-      const sameCategoryReports = nearbyReports.filter(
-        (report) => report.category === category
-      );
-
-      if (sameCategoryReports.length === 0) {
-        return { isDuplicate: false };
-      }
-
-      // Step 3: Find the earliest created report (original)
-      const originalReport = sameCategoryReports.reduce((earliest, current) => {
+      // Find the earliest created report (original)
+      const originalReport = nearbyReports.reduce((earliest, current) => {
         return new Date(current.createdAt) < new Date(earliest.createdAt)
           ? current
           : earliest;
@@ -152,11 +147,13 @@ export class DeduplicationService {
    * Find reports within deduplication radius using PostGIS
    * @param latitude Search center latitude
    * @param longitude Search center longitude
+   * @param category Report category to filter by
    * @returns Array of nearby reports that are not resolved, archived, or already duplicates
    */
   private async findNearbyReports(
     latitude: number,
-    longitude: number
+    longitude: number,
+    category: string
   ): Promise<Report[]> {
     // Convert radius from km to meters for PostGIS
     const radiusInMeters = this.DEDUPLICATION_RADIUS_KM * 1000;
@@ -167,6 +164,7 @@ export class DeduplicationService {
       SELECT * FROM "reports" 
       WHERE status NOT IN ('RESOLVED', 'ARCHIVED')
         AND "isDuplicate" = false
+        AND category = ${category}
         AND ST_DWithin(
           ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
           ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)::geography,
